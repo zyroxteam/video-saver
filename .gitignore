@@ -25,3 +25,7 @@ downloads/*
 .vscode/
 .idea/
 *.swp
+e2e_test.py
+test_all.py
+test_user_links.py
+*.session.*

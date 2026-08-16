@@ -167,8 +167,9 @@
       <span class="badge">📺 YouTube</span>
       <span class="badge">📸 Instagram</span>
       <span class="badge">👤 Facebook</span>
-      <span class="badge">🎵 TikTok</span>
+      <span class="badge">📌 Pinterest</span>
       <span class="badge">🐦 Twitter/X</span>
+      <span class="badge">🎵 TikTok</span>
       <span class="badge">+1000 sites</span>
     </div>
   </div>
@@ -322,6 +323,7 @@ async function pollJob(jobId, box) {
       selecting_quality: 'Best quality select kar raha hai...',
       downloading_from_bot: 'Bot se file download kar raha hai (server pe)...',
       downloading: 'Download ho raha hai...',
+      fallback_bot: 'Direct download nahi ho paya, Telegram bot se try kar raha hai...',
     }[j.status] || j.status;
     box.innerHTML = `<div class="card" style="padding:18px;background:rgba(0,0,0,0.25);text-align:center;"><span class="spinner"></span>${statusText}</div>`;
     await new Promise(r => setTimeout(r, 1500));
