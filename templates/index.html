@@ -1,0 +1,345 @@
+<!DOCTYPE html>
+<html lang="hi">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>VideoSaver — YouTube, Instagram, Facebook Video Downloader</title>
+<style>
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body {
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+    background: linear-gradient(135deg, #0f0c29 0%, #302b63 50%, #24243e 100%);
+    min-height: 100vh;
+    color: #fff;
+    padding: 20px;
+  }
+  .container { max-width: 760px; margin: 0 auto; }
+  .header {
+    text-align: center;
+    padding: 40px 0 30px;
+  }
+  .logo {
+    font-size: 42px;
+    font-weight: 800;
+    background: linear-gradient(90deg, #ff6b6b, #feca57, #48dbfb, #ff9ff3);
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+    margin-bottom: 10px;
+  }
+  .subtitle { color: #bbb; font-size: 16px; }
+
+  .badges {
+    display: flex; flex-wrap: wrap; justify-content: center;
+    gap: 8px; margin-top: 16px;
+  }
+  .badge {
+    background: rgba(255,255,255,0.1); padding: 6px 12px;
+    border-radius: 20px; font-size: 13px;
+    border: 1px solid rgba(255,255,255,0.15);
+  }
+
+  .card {
+    background: rgba(255,255,255,0.08);
+    backdrop-filter: blur(16px);
+    border-radius: 18px;
+    padding: 28px;
+    border: 1px solid rgba(255,255,255,0.12);
+    box-shadow: 0 12px 40px rgba(0,0,0,0.4);
+  }
+
+  .input-row {
+    display: flex; gap: 10px; margin-top: 14px;
+    flex-wrap: wrap;
+  }
+  input[type="text"] {
+    flex: 1; min-width: 240px;
+    padding: 16px 20px;
+    border-radius: 12px;
+    border: 2px solid transparent;
+    background: rgba(0,0,0,0.3);
+    color: #fff;
+    font-size: 16px;
+    outline: none;
+    transition: 0.2s;
+  }
+  input[type="text"]:focus { border-color: #48dbfb; }
+  input[type="text"]::placeholder { color: #888; }
+
+  button {
+    padding: 16px 28px;
+    border-radius: 12px;
+    border: none;
+    background: linear-gradient(90deg, #ff6b6b, #ee5a6f);
+    color: #fff;
+    font-size: 16px;
+    font-weight: 600;
+    cursor: pointer;
+    transition: transform 0.15s, box-shadow 0.15s;
+    min-width: 130px;
+  }
+  button:hover { transform: translateY(-2px); box-shadow: 0 8px 20px rgba(238,90,111,0.4); }
+  button:disabled { opacity: 0.6; cursor: not-allowed; transform: none; }
+
+  .spinner {
+    display: inline-block; width: 18px; height: 18px;
+    border: 3px solid rgba(255,255,255,0.3);
+    border-top-color: #fff; border-radius: 50%;
+    animation: spin 0.8s linear infinite; vertical-align: middle;
+    margin-right: 8px;
+  }
+  @keyframes spin { to { transform: rotate(360deg); } }
+
+  .result { margin-top: 24px; display: none; }
+  .result.show { display: block; animation: fadeIn 0.4s; }
+  @keyframes fadeIn { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: none; } }
+
+  .media {
+    display: flex; gap: 16px; padding: 16px;
+    background: rgba(0,0,0,0.25); border-radius: 14px;
+    margin-bottom: 16px;
+  }
+  .thumb {
+    width: 160px; min-width: 160px;
+    aspect-ratio: 16/9; object-fit: cover;
+    border-radius: 10px; background: #000;
+  }
+  .meta { flex: 1; min-width: 0; }
+  .title { font-size: 17px; font-weight: 600; margin-bottom: 6px; line-height: 1.3;
+           display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
+  .platform-tag {
+    display: inline-block; padding: 3px 10px; border-radius: 8px;
+    font-size: 12px; background: rgba(72, 219, 251, 0.2); color: #48dbfb;
+    margin-bottom: 6px;
+  }
+  .uploader { color: #aaa; font-size: 13px; }
+
+  .quality-list {
+    display: grid; gap: 10px;
+    grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
+  }
+  .q-btn {
+    background: rgba(255,255,255,0.08);
+    border: 1px solid rgba(255,255,255,0.15);
+    padding: 12px 16px; border-radius: 12px;
+    color: #fff; cursor: pointer;
+    text-align: left; transition: 0.15s;
+    font-size: 14px;
+  }
+  .q-btn:hover { background: rgba(72,219,251,0.2); border-color: #48dbfb; }
+  .q-btn .q-res { font-weight: 600; font-size: 15px; }
+  .q-btn .q-sub { color: #aaa; font-size: 12px; margin-top: 3px; }
+
+  .error {
+    background: rgba(255, 71, 87, 0.15);
+    border: 1px solid rgba(255, 71, 87, 0.4);
+    padding: 14px; border-radius: 12px; color: #ff8787;
+    margin-top: 16px;
+  }
+  .success-box {
+    background: rgba(46,213,115,0.12);
+    border: 1px solid rgba(46,213,115,0.4);
+    padding: 18px; border-radius: 12px;
+    text-align: center;
+  }
+  .success-box a {
+    display: inline-block; margin-top: 10px;
+    padding: 12px 22px; border-radius: 10px;
+    background: linear-gradient(90deg, #2ed573, #1dd1a1);
+    color: #fff; text-decoration: none; font-weight: 600;
+  }
+  .footer {
+    text-align: center; margin-top: 40px;
+    color: #777; font-size: 13px;
+  }
+  @media (max-width: 560px) {
+    .media { flex-direction: column; }
+    .thumb { width: 100%; min-width: auto; }
+    .logo { font-size: 32px; }
+  }
+</style>
+</head>
+<body>
+<div class="container">
+  <div class="header">
+    <div class="logo">🎬 VideoSaver</div>
+    <div class="subtitle">YouTube • Instagram • Facebook • TikTok • Twitter — sab kuch download karein</div>
+    <div class="badges">
+      <span class="badge">📺 YouTube</span>
+      <span class="badge">📸 Instagram</span>
+      <span class="badge">👤 Facebook</span>
+      <span class="badge">🎵 TikTok</span>
+      <span class="badge">🐦 Twitter/X</span>
+      <span class="badge">+1000 sites</span>
+    </div>
+  </div>
+
+  <div class="card">
+    <label style="font-size:15px;color:#ccc;">Video ka link yahan paste karein:</label>
+    <div class="input-row">
+      <input type="text" id="url" placeholder="https://youtube.com/watch?v=... ya Instagram/Facebook link"
+             autocomplete="off" />
+      <button id="fetchBtn">🔍 Fetch</button>
+    </div>
+
+    <div id="errorBox" class="error" style="display:none;"></div>
+    <div id="result" class="result"></div>
+  </div>
+
+  <div class="footer">
+    <p>Backend engine: <strong>{{ backend }}</strong> • Made with ❤️ using yt-dlp</p>
+    <p style="margin-top:6px;">Sirf personal use ke liye. Copyright ka dhyan rakhein.</p>
+  </div>
+</div>
+
+<script>
+const urlInput = document.getElementById('url');
+const fetchBtn = document.getElementById('fetchBtn');
+const result   = document.getElementById('result');
+const errorBox = document.getElementById('errorBox');
+
+function showError(msg) {
+  errorBox.textContent = '❌ ' + msg;
+  errorBox.style.display = 'block';
+  result.classList.remove('show');
+}
+function clearError() { errorBox.style.display = 'none'; }
+
+urlInput.addEventListener('keydown', e => { if (e.key === 'Enter') fetchBtn.click(); });
+
+fetchBtn.addEventListener('click', async () => {
+  const url = urlInput.value.trim();
+  if (!url) { showError('Pehle ek URL to daalein!'); return; }
+  clearError();
+  fetchBtn.disabled = true;
+  fetchBtn.innerHTML = '<span class="spinner"></span>Fetching...';
+  result.classList.remove('show');
+
+  try {
+    const res = await fetch('/api/fetch', {
+      method: 'POST', headers: {'Content-Type':'application/json'},
+      body: JSON.stringify({url})
+    });
+    const data = await res.json();
+    if (!data.ok) throw new Error(data.error || 'Kuchh gadbad hai.');
+
+    // Two paths: ytdlp returns info for format selection; telegram returns job_id directly
+    if (data.job_id) {
+      renderProgress(data.job_id, url);
+    } else {
+      renderInfo(data.info, url);
+    }
+  } catch (err) {
+    showError(err.message);
+  } finally {
+    fetchBtn.disabled = false;
+    fetchBtn.textContent = '🔍 Fetch';
+  }
+});
+
+function renderInfo(info, url) {
+  const dur = info.duration ? `${Math.floor(info.duration/60)}:${String(info.duration%60).padStart(2,'0')}` : '';
+  const thumbHtml = info.thumbnail
+    ? `<img class="thumb" src="${info.thumbnail}" alt="thumbnail" onerror="this.style.display='none'"/>`
+    : `<div class="thumb" style="background:#222;display:flex;align-items:center;justify-content:center;font-size:48px;">🎞️</div>`;
+
+  let formatsHtml = '';
+  info.formats.forEach(f => {
+    const label = f.has_video ? f.resolution : (f.has_audio ? 'Audio only' : f.resolution);
+    formatsHtml += `
+      <button class="q-btn" data-fmt="${f.format_id}" data-ext="${f.ext}">
+        <div class="q-res">${label} · ${f.ext.toUpperCase()}</div>
+        <div class="q-sub">${f.filesize_human}${f.has_audio && f.has_video ? ' • Video+Audio' : f.has_audio ? ' • Audio' : ' • Video'}</div>
+      </button>`;
+  });
+
+  if (!formatsHtml) {
+    formatsHtml = `<button class="q-btn" data-fmt="" data-ext="mp4">
+      <div class="q-res">Best Quality · MP4</div><div class="q-sub">Auto</div></button>`;
+  }
+
+  result.innerHTML = `
+    <div class="media">
+      ${thumbHtml}
+      <div class="meta">
+        <span class="platform-tag">${info.platform}</span>
+        <div class="title">${escapeHtml(info.title)}</div>
+        <div class="uploader">${escapeHtml(info.uploader || '')} ${dur ? '• ' + dur : ''}</div>
+      </div>
+    </div>
+    <h3 style="margin-bottom:12px;">⬇️ Quality choose karein:</h3>
+    <div class="quality-list">${formatsHtml}</div>
+    <div id="dl-progress" style="margin-top:16px;"></div>
+  `;
+  result.classList.add('show');
+
+  result.querySelectorAll('.q-btn').forEach(btn => {
+    btn.addEventListener('click', () => startDownload(url, btn.dataset.fmt, btn));
+  });
+}
+
+async function startDownload(url, formatId, btn) {
+  result.querySelectorAll('.q-btn').forEach(b => b.disabled = true);
+  btn.innerHTML = '<span class="spinner"></span>Downloading...';
+  const progressBox = document.getElementById('dl-progress');
+  progressBox.innerHTML = '<div class="card" style="padding:18px;background:rgba(0,0,0,0.25);text-align:center;"><span class="spinner"></span>Server download kar raha hai, please wait...</div>';
+
+  try {
+    const res = await fetch('/api/download', {
+      method:'POST', headers:{'Content-Type':'application/json'},
+      body: JSON.stringify({url, format_id: formatId})
+    });
+    const data = await res.json();
+    if (!data.ok) throw new Error(data.error);
+    await pollJob(data.job_id, progressBox);
+  } catch(err) {
+    progressBox.innerHTML = `<div class="error">❌ ${err.message}</div>`;
+    result.querySelectorAll('.q-btn').forEach(b => b.disabled = false);
+    btn.innerHTML = btn.querySelector('.q-res').textContent;
+  }
+}
+
+async function pollJob(jobId, box) {
+  while (true) {
+    const res = await fetch('/api/status/' + jobId);
+    const data = await res.json();
+    if (!data.ok) throw new Error(data.error);
+    const j = data.job;
+    if (j.status === 'done') {
+      const size = j.filesize_human || '';
+      box.innerHTML = `
+        <div class="success-box">
+          ✅ <strong>Taiyaar!</strong> "${escapeHtml(j.title || 'Video')}" ${size ? '('+size+')' : ''}
+          <br/><a href="/files/${j.filename}" download>⬇️ Download File</a>
+        </div>`;
+      return;
+    }
+    if (j.status === 'error') {
+      throw new Error(j.error || 'Download failed.');
+    }
+    const statusText = {
+      queued: 'Queue me wait kar raha hai...',
+      contacting_bot: 'Telegram bot @' + (j.bot || 'allsaverbot') + ' se baat kar raha hai...',
+      selecting_quality: 'Best quality select kar raha hai...',
+      downloading_from_bot: 'Bot se file download kar raha hai (server pe)...',
+      downloading: 'Download ho raha hai...',
+    }[j.status] || j.status;
+    box.innerHTML = `<div class="card" style="padding:18px;background:rgba(0,0,0,0.25);text-align:center;"><span class="spinner"></span>${statusText}</div>`;
+    await new Promise(r => setTimeout(r, 1500));
+  }
+}
+
+function renderProgress(jobId, url) {
+  result.innerHTML = `<div id="dl-progress"></div>`;
+  result.classList.add('show');
+  pollJob(jobId, document.getElementById('dl-progress'));
+}
+
+function escapeHtml(s) {
+  if (!s) return '';
+  return String(s).replace(/[&<>"']/g, c => ({
+    '&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'
+  }[c]));
+}
+</script>
+</body>
+</html>

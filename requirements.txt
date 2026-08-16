@@ -1,0 +1,4 @@
+flask>=3.0
+yt-dlp>=2024.01.01
+pyrogram>=2.0
+tgcrypto>=1.2

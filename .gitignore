@@ -1,0 +1,27 @@
+# Secrets — NEVER commit these!
+.env
+.session.txt
+*.session
+.code.txt
+.pwd.txt
+.tmp_login.json
+
+# Python
+__pycache__/
+*.pyc
+*.pyo
+.venv/
+venv/
+env/
+
+# Downloads (keep folder via .gitkeep)
+downloads/*
+!downloads/.gitkeep
+
+# Logs
+*.log
+
+# IDE
+.vscode/
+.idea/
+*.swp
