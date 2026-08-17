@@ -31,3 +31,5 @@ test_user_links.py
 *.session.*
 downloads/
 prod_final/
+zyrox_main*
+*.session-journal

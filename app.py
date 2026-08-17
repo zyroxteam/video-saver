@@ -1,16 +1,15 @@
 """
-All-in-One Video Downloader Website (VideoSaver)
-=================================================
-Supports 1000+ sites via Telegram bot chain (PRIMARY — works on every hosting).
+ZYROX DOWNLOADER — All-in-One Video Saver
+==========================================
+Telegram bot-chain based downloader (PRIMARY — works on every hosting).
 yt-dlp is last-resort fallback for local/dev.
 
-Bot chain:
-  @allsaverbot  →  @YTfinderbot
-(allsaverbot supports YouTube, Instagram, Facebook, Twitter/X, Pinterest, TikTok,
-Likee, Snapchat, Dailymotion, Vimeo, Reddit and 40+ more sites.)
+Single shared asyncio loop + ONE persistent Pyrogram client to avoid
+Telegram session flooding. Jobs are queued (1 at a time).
 """
-import os, re, uuid, time, threading, urllib.parse, asyncio
+import os, re, uuid, time, threading, urllib.parse, asyncio, queue as _q
 from pathlib import Path
+from functools import wraps
 
 # ------------- auto-load .env -------------
 ENV_PATH = Path(__file__).resolve().parent / ".env"
@@ -40,7 +39,6 @@ except ImportError:
 
 # ------------- Config -------------
 APP_ROOT = Path(__file__).resolve().parent
-# Use /tmp on server (writable, fast, ephemeral OK for short-lived downloads)
 _default_dl = Path("/tmp/videosaver") if os.environ.get("PORT") else (APP_ROOT / "downloads")
 DOWNLOAD_DIR = Path(os.environ.get("DOWNLOAD_DIR", str(_default_dl)))
 try:
@@ -51,11 +49,8 @@ except Exception:
 
 BACKEND = os.environ.get("DOWNLOAD_BACKEND", "auto").lower()
 
-# Bot list — platform-specific routing
-# Default order (used when no platform-specific bot exists):
 BOTS_RAW = os.environ.get("BOT_USERNAME", "YTfinderbot,allsaverbot,FacebookDl_RoBot")
 BOT_LIST = [b.strip().lstrip("@") for b in BOTS_RAW.split(",") if b.strip()]
-# Always include platform-specific bots (merge, dedupe, preserve order)
 _extra = ["FacebookDl_RoBot"]
 _seen = set(b.lower() for b in BOT_LIST)
 for _b in _extra:
@@ -63,37 +58,23 @@ for _b in _extra:
         BOT_LIST.append(_b)
         _seen.add(_b.lower())
 
-# Platform-specific bot preference (highest priority first)
-# FacebookDl_RoBot is dedicated for Facebook; YTfinderbot fastest for YT/TikTok; allsaverbot covers 40+ sites
 PLATFORM_BOTS = {
     "Facebook": ["FacebookDl_RoBot", "allsaverbot", "YTfinderbot"],
     "YouTube": ["YTfinderbot", "allsaverbot"],
     "TikTok": ["YTfinderbot", "allsaverbot"],
 }
 
-def _get_bot_order(url: str) -> list:
-    """Return ordered list of bots to try for given URL."""
-    platform = detect_platform(url)
+def _get_bot_order(url):
+    platform = detect_platform(url) if False else _detect_platform(url)
     preferred = PLATFORM_BOTS.get(platform, [])
-    ordered = []
-    seen = set()
-    for b in preferred + BOT_LIST:
+    ordered, seen = [], set()
+    for b in list(preferred) + list(BOT_LIST):
         bl = b.lower().lstrip("@")
         if bl not in seen:
-            seen.add(bl)
-            ordered.append(bl)
+            seen.add(bl); ordered.append(bl)
     return ordered
 
-# Branded display names (shown to user instead of raw bot usernames)
-BOT_DISPLAY = {
-    "ytfinderbot": {"backend": "Zyrox Server", "bot_label": "🤖 Toxic Arjun Bot"},
-    "allsaverbot": {"backend": "Zyrox Server", "bot_label": "🤖 Toxic Arjun Bot"},
-    "facebookdl_robot": {"backend": "Zyrox Server", "bot_label": "🤖 Toxic Arjun Bot"},
-    "facebookdl_roboot": {"backend": "Zyrox Server", "bot_label": "🤖 Toxic Arjun Bot"},
-    "facebookdlroboot": {"backend": "Zyrox Server", "bot_label": "🤖 Toxic Arjun Bot"},
-    "facebookdl_robot": {"backend": "Zyrox Server", "bot_label": "🤖 Toxic Arjun Bot"},
-    "default": {"backend": "Zyrox Server", "bot_label": "🤖 Toxic Arjun Bot"},
-}
+BOT_DISPLAY = {"default": {"backend": "Zyrox Server", "bot_label": "🤖 Toxic Arjun Bot"}}
 
 app = Flask(__name__)
 app.config["MAX_CONTENT_LENGTH"] = 500 * 1024 * 1024
@@ -107,10 +88,10 @@ URL_REGEX = re.compile(
 )
 
 # ------------- helpers -------------
-def sanitize(name: str) -> str:
+def sanitize(name):
     return re.sub(r"[\\/:*?\"<>|]", "_", name).strip(". ")[:120] or "video"
 
-def detect_platform(url: str) -> str:
+def _detect_platform(url):
     h = urllib.parse.urlparse(url).netloc.lower()
     if "youtu" in h: return "YouTube"
     if "instagram" in h: return "Instagram"
@@ -124,6 +105,7 @@ def detect_platform(url: str) -> str:
     if "dailymotion" in h or "dai.ly" in h: return "Dailymotion"
     if "vimeo" in h: return "Vimeo"
     return h
+detect_platform = _detect_platform
 
 def human_size(n):
     for u in ("B","KB","MB","GB"):
@@ -131,332 +113,329 @@ def human_size(n):
         n /= 1024
     return f"{n:.1f} TB"
 
-def make_event_loop():
-    try:
-        asyncio.get_running_loop()
-    except RuntimeError:
-        loop = asyncio.new_event_loop()
-        asyncio.set_event_loop(loop)
-
 # ------------- Bot config -------------
-# Per-bot button keyword preferences
 BOT_VIDEO_KEYWORDS = {
-    "allsaverbot": ["1080", "720", "480", "360", "240", "hd", "video", "mp4", "🎞", "download"],
-    "ytfinderbot": ["video", "🎞", "mp4", "hd", "download", "get"],
-    "facebookdl_robot": ["video", "mp4", "hd", "sd", "download", "quality", "🔞"],
+    "allsaverbot": ["1080","720","480","360","240","hd","video","mp4","🎞","download"],
+    "ytfinderbot": ["video","🎞","mp4","hd","download","get"],
+    "facebookdl_robot": ["video","mp4","hd","sd","download","quality"],
 }
-
-# Phrases that indicate the bot rejected the URL (don't wait for video)
+# Buttons to click BEFORE quality selection (subscribe gates / start prompts)
+GATE_KEYWORDS = ["confirm","continue","subscribed","✅","start","get started","i have joined","begin"]
 FATAL_ERROR_KW = [
-    "not found", "doesn't support", "does not support", "unable to",
-    "couldn", "could not", "unfortunately", "invalid link", "link is invalid",
-    "add to group", "guruhga", "group ga", "music was not found",
-    "try another link", "no video", "failed to", "cannot download",
-    "can't download", "can't process", "can't find",
-    "скачать не удалось", "не удалось", "download failed",
+    "not found","doesn't support","does not support","unable to",
+    "couldn","could not","unfortunately","invalid link","link is invalid",
+    "add to group","guruhga","music was not found","try another link","no video",
+    "failed to","cannot download","can't download","can't process","can't find",
+    "скачать не удалось","не удалось","download failed","hello! i can download",
 ]
+def _sg(o, a, d=None):
+    try: return getattr(o, a, d)
+    except Exception: return d
+def _st(m, a="text"):
+    try: return str(_sg(m, a) or "")
+    except Exception: return ""
+def _ha(m, a):
+    try: return bool(_sg(m, a))
+    except Exception: return False
 
-def _safe_getattr(obj, attr, default=None):
-    try:
-        return getattr(obj, attr, default)
-    except Exception:
-        return default
+def _pick_button(bot_name, msg, stage="quality"):
+    """Pick a button to click. stage='gate' returns gate/confirm buttons;
+    stage='quality' returns best video-quality button."""
+    rm = _sg(msg, "reply_markup")
+    if not rm: return None
+    try: kb = getattr(rm, "inline_keyboard", None) or []
+    except Exception: return None
+    btns = [b for row in kb for b in row if _sg(b, "callback_data")]
+    if not btns: return None
 
-def _safe_text(m, attr="text"):
-    """Safely get text/caption from a Pyrogram message (surrogate chars crash otherwise)."""
-    try:
-        v = getattr(m, attr, None) or ""
-        return str(v)
-    except Exception:
-        return ""
-
-def _has_attr(m, attr):
-    try:
-        v = getattr(m, attr, None)
-        return bool(v)
-    except Exception:
-        return False
-
-def _pick_button(bot_name, msg):
-    """Pick the best video/quality button."""
-    rm = _safe_getattr(msg, "reply_markup")
-    if not rm:
+    if stage == "gate":
+        # Click any "Confirm / Continue / Subscribed" gate button
+        for b in btns:
+            t = (_sg(b, "text") or "").lower()
+            if any(k in t for k in GATE_KEYWORDS):
+                return b
         return None
-    try:
-        kb = getattr(rm, "inline_keyboard", None) or []
-    except Exception:
-        return None
-    btns = [b for row in kb for b in row if _safe_getattr(b, "callback_data")]
-    if not btns:
-        return None
-    kws = BOT_VIDEO_KEYWORDS.get(bot_name.lower(),
-                                 ["1080","720","480","360","240","mp4","video","hd","🎞","download"])
-    # Score each button: prefer higher quality
-    quality_order = ["2160","1440","1080","hd","720","480","360","240","mp4","video","🎞","download"]
+
+    quality_order = ["2160","1440","1080","hd","720","480","360","240","mp4","video","🎞","download","get","save"]
     best = None; best_score = -1
     for b in btns:
-        t = (_safe_getattr(b, "text") or "").lower()
+        t = (_sg(b, "text") or "").lower()
         if "audio" in t or "mp3" in t or "🎧" in t or "add to group" in t or "guruhga" in t:
+            continue
+        # Avoid re-clicking "confirm/subscribe" buttons as quality
+        if any(k in t for k in GATE_KEYWORDS):
             continue
         for i, k in enumerate(quality_order):
             if k in t:
-                score = len(quality_order) - i
-                if score > best_score:
-                    best_score = score; best = b
+                sc = len(quality_order) - i
+                if sc > best_score:
+                    best_score = sc; best = b
                 break
-    if best:
-        return best
-    # Fallback: any non-audio button
+    if best: return best
     for b in btns:
-        t = (_safe_getattr(b, "text") or "").lower()
-        if "audio" in t or "mp3" in t or "🎧" in t:
-            continue
-        return b
+        t = (_sg(b, "text") or "").lower()
+        if "audio" not in t and "mp3" not in t and "🎧" not in t \
+           and not any(k in t for k in GATE_KEYWORDS) \
+           and "add to group" not in t and "guruhga" not in t:
+            return b
     return None
 
-# ------------- Telegram bot engine (event-driven for reliability) -------------
-async def _bot_download_one(bot_name, url, job_id, api_id, api_hash, session_str):
-    """Connect to one Telegram bot, send URL, auto-click button, download video.
-    Uses Pyrogram's update handlers (not polling get_chat_history) — most reliable."""
-    from pyrogram import enums
+# ------------- SHARED ASYNC ENGINE -------------
+_tg_loop = None
+_tg_client = None
+_tg_started = asyncio.Event()
+_tg_ready = threading.Event()
+_job_queue = asyncio.Queue()
 
+async def _client_keepalive():
+    """Maintain one persistent Pyrogram client across all jobs."""
+    global _tg_client
+    api_id = int(os.environ.get("TELEGRAM_API_ID", "0"))
+    api_hash = os.environ.get("TELEGRAM_API_HASH", "")
+    session = os.environ.get("TELEGRAM_SESSION_STRING", "")
+    if not (api_id and api_hash and session and HAS_PYROGRAM):
+        print("[tg] credentials missing, engine disabled", flush=True)
+        return
+    client = PyroClient(
+        "zyrox_main", api_id=api_id, api_hash=api_hash,
+        session_string=session, in_memory=False,
+        workers=2, max_concurrent_transmissions=2,
+    )
+    _tg_client = client
+    print(f"[tg] starting client...", flush=True)
+    backoff = 2
+    while True:
+        try:
+            await client.start()
+            print("[tg] client CONNECTED ✓", flush=True)
+            _tg_started.set()
+            _tg_ready.set()
+            # Keep alive; if disconnected, reconnect
+            while client.is_connected:
+                await asyncio.sleep(5)
+            _tg_started.clear()
+            print("[tg] disconnected, will reconnect...", flush=True)
+        except Exception as e:
+            print(f"[tg] client error: {type(e).__name__}: {e}", flush=True)
+        try:
+            try: await client.stop()
+            except Exception: pass
+        except Exception: pass
+        _tg_started.clear()
+        print(f"[tg] retrying in {backoff}s...", flush=True)
+        await asyncio.sleep(backoff)
+        backoff = min(backoff * 2, 30)
+
+async def _bot_download_one(bot_name, url, job_id):
+    """Download via a specific bot using the SHARED client."""
+    client = _tg_client
+    if not client or not client.is_connected:
+        raise RuntimeError("Telegram client ready nahi hai")
     bot_uname = bot_name.lower().lstrip("@")
     bot_chat = "@" + bot_uname
 
-    client = PyroClient(
-        f"jb_{job_id}_{bot_uname}_{uuid.uuid4().hex[:5]}",
-        api_id=api_id, api_hash=api_hash,
-        session_string=session_str, in_memory=True,
-        workers=1,
-    )
-
-    video_future = asyncio.Future()     # resolved with the media Message
-    error_future = asyncio.Future()     # resolved with error string
-    clicked_flag = {"v": False}
+    video_future = asyncio.Future()
+    error_future = asyncio.Future()
+    clicked_flag = {"v": False, "gate": 0}  # gate click counter (max 3)
     title_box = {"t": "Video"}
     sent_ts = [0.0]
+    handler_installed = [False]
+    latest_seen_id = [0]
+    _HANDLER_GROUP = -99  # Dedicated group so add/remove are idempotent
 
     def _set_err(msg):
         if not error_future.done():
             error_future.set_result(msg)
 
     async def _process_message(c, m):
-        """Process a single message (called from both handler and history poll).
-        Every attribute access is wrapped so ONE bad field can't crash the handler."""
         try:
-            if clicked_flag["_drained"] is False:
+            if not clicked_flag.get("_ready", False):
                 return
-            # Skip outgoing
-            if _safe_getattr(m, "outgoing"):
+            if _sg(m, "outgoing"):
                 return
-            # Time filter
             try:
-                md = _safe_getattr(m, "date")
+                md = _sg(m, "date")
                 if md and sent_ts[0] and md.timestamp() < sent_ts[0] - 3:
                     return
             except Exception:
                 pass
-            # 1. Video/document?
-            v = _safe_getattr(m, "video")
-            d = _safe_getattr(m, "document")
-            is_video = bool(v)
-            is_vdoc = False
+            v = _sg(m, "video")
+            d = _sg(m, "document")
+            is_v = bool(v)
+            is_vd = False
             if d:
-                try:
-                    is_vdoc = (_safe_getattr(d, "mime_type") or "").startswith("video/")
-                except Exception:
-                    is_vdoc = False
-            if is_video or is_vdoc:
+                try: is_vd = (_sg(d, "mime_type") or "").startswith("video/")
+                except Exception: is_vd = False
+            if is_v or is_vd:
                 if not video_future.done():
-                    cap = _safe_text(m, "caption")
-                    if cap:
-                        title_box["t"] = cap[:120]
+                    cap = _st(m, "caption")
+                    if cap: title_box["t"] = cap[:120]
                     video_future.set_result(m)
                 return
-            # 2. Audio skip
-            if _has_attr(m, "audio"):
+            if _ha(m, "audio"):
                 return
-            # 3. Photo/animation — caption for title
-            if _has_attr(m, "photo") or _has_attr(m, "animation") or _has_attr(m, "video_note"):
-                cap = _safe_text(m, "caption")
+            if _ha(m, "photo") or _ha(m, "animation") or _ha(m, "video_note"):
+                cap = _st(m, "caption")
                 if cap and (not title_box["t"] or title_box["t"] == "Video"):
                     title_box["t"] = cap[:120]
-            # 4. Text / error detection
-            mtxt = _safe_text(m, "text") or _safe_text(m, "caption")
+            mtxt = _st(m, "text") or _st(m, "caption")
             if mtxt:
                 tl = mtxt.lower()
                 if not (mtxt.strip().startswith("🔍") or mtxt.strip() == "/cancel"):
-                    is_search_list = ("\n" in mtxt) and bool(re.search(r'(^|\n)\s*\d+\.\s+\S+', mtxt))
-                    if not is_search_list or clicked_flag["v"]:
+                    if not (("\n" in mtxt) and re.search(r'(^|\n)\s*\d+\.\s+\S+', mtxt) and not clicked_flag["v"]):
                         for kw in FATAL_ERROR_KW:
                             if kw in tl:
-                                if len(mtxt) < 250 or "not support" in tl or "guruhga" in tl:
+                                if len(mtxt) < 260 or "not support" in tl or "guruhga" in tl:
                                     _set_err(f"@{bot_uname} ye URL support nahi karta")
                                     return
-            # 5. Auto-click button (fire-and-forget, don't await answer)
             if not video_future.done() and not error_future.done():
-                rm = _safe_getattr(m, "reply_markup")
-                btn = _pick_button(bot_uname, m) if rm else None
-                if btn and not clicked_flag["v"]:
-                    clicked_flag["v"] = True
-                    cap = _safe_text(m, "caption")
-                    if cap and (not title_box["t"] or title_box["t"] == "Video"):
-                        title_box["t"] = cap[:120]
-                    with jobs_lock:
-                        jobs[job_id]["status"] = "selecting_quality"
-                    async def _do_click():
-                        try:
-                            await c.request_callback_answer(m.chat.id, m.id, btn.callback_data, timeout=60)
-                        except Exception:
-                            pass
-                    asyncio.create_task(_do_click())
+                rm = _sg(m, "reply_markup")
+                # 1) First click any gate/confirm button (subscribe prompt)
+                if rm and not clicked_flag["v"] and clicked_flag["gate"] < 3:
+                    gate = _pick_button(bot_uname, m, stage="gate")
+                    if gate:
+                        clicked_flag["gate"] += 1
+                        print(f"[bot {bot_uname}] gate click #{clicked_flag['gate']} ({(gate.text or '')[:20]!r})", flush=True)
+                        async def _do_gate(msg=m, b=gate):
+                            try:
+                                await c.request_callback_answer(msg.chat.id, msg.id, b.callback_data, timeout=30)
+                            except Exception:
+                                pass
+                        asyncio.create_task(_do_gate())
+                        return
+                # 2) Then click quality button
+                if rm and not clicked_flag["v"]:
+                    btn = _pick_button(bot_uname, m, stage="quality")
+                    if btn:
+                        clicked_flag["v"] = True
+                        cap = _st(m, "caption")
+                        if cap and (not title_box["t"] or title_box["t"] == "Video"):
+                            title_box["t"] = cap[:120]
+                        with jobs_lock:
+                            jobs[job_id]["status"] = "selecting_quality"
+                        print(f"[bot {bot_uname}] quality click ({(btn.text or '')[:20]!r})", flush=True)
+                        async def _do_click(msg=m, b=btn):
+                            try:
+                                await c.request_callback_answer(msg.chat.id, msg.id, b.callback_data, timeout=60)
+                            except Exception:
+                                pass
+                        asyncio.create_task(_do_click())
         except Exception as e:
-            # Never let one bad message kill the whole handler
-            print(f"[bot {bot_uname}] handler error (ignored): {type(e).__name__}: {e}", flush=True)
+            print(f"[bot {bot_uname}] handler err: {type(e).__name__}: {e}", flush=True)
 
     async def message_handler(c, m):
-        # Wrap EVERY call so Pyrogram's dispatcher never sees an exception
         try:
-            # Basic chat filter
-            try:
-                ch = _safe_getattr(m, "chat")
-                if ch:
-                    cu = (_safe_getattr(ch, "username") or "").lower()
-                    if cu and cu != bot_uname:
-                        return
-            except Exception:
-                pass
+            ch = _sg(m, "chat")
+            if ch:
+                cu = (_sg(ch, "username") or "").lower()
+                if cu and cu != bot_uname:
+                    return
             await _process_message(c, m)
         except Exception as e:
             print(f"[bot {bot_uname}] outer handler err: {e}", flush=True)
 
-    clicked_flag["_drained"] = False
-
-    async with client:
-        client.add_handler(handlers.MessageHandler(message_handler, filters.chat(bot_chat)))
-
-        # ----- DRAIN: reset prior state -----
+    # Install handler in a DEDICATED group so remove_handler works
+    grp = handlers.MessageHandler(message_handler, filters.chat(bot_chat))
+    try:
+        client.remove_handler(grp, _HANDLER_GROUP)
+    except Exception:
+        pass
+    client.add_handler(grp, group=_HANDLER_GROUP)
+    try:
+        # DRAIN
+        clicked_flag["_ready"] = False
         try:
             await client.send_message(bot_chat, "/cancel")
         except Exception:
             pass
-        # Wait for cancel to take effect, then eat any leftover messages
-        await asyncio.sleep(1.5)
+        await asyncio.sleep(1.2)
         try:
-            async for _ in client.get_chat_history(bot_chat, limit=20):
+            async for _ in client.get_chat_history(bot_chat, limit=15):
                 pass
         except Exception:
             pass
-        await asyncio.sleep(0.8)
-        clicked_flag["_drained"] = True
+        await asyncio.sleep(0.6)
+        clicked_flag["_ready"] = True
 
-        # ----- SEND URL -----
+        # SEND URL
         await client.send_message(bot_chat, url)
         sent_ts[0] = time.time()
         t0 = sent_ts[0]
-
         with jobs_lock:
             jobs[job_id]["status"] = "contacting_bot"
 
-        # ----- WAIT LOOP -----
-        # Budgets: 35s pre-click (button/video), 120s post-click for video
-        total_deadline = t0 + 150
-        got_click_extend = False
+        total_deadline = t0 + 90
+        got_extend = False
         last_poll = 0.0
-        latest_seen_id = 0
-
         while time.time() < total_deadline:
             if not clicked_flag["v"]:
-                remaining = min(35, total_deadline - time.time())
+                remaining = min(25, total_deadline - time.time())
             else:
-                if not got_click_extend:
+                if not got_extend:
                     total_deadline = time.time() + 120
-                    got_click_extend = True
+                    got_extend = True
                 remaining = total_deadline - time.time()
-            if remaining <= 0:
-                break
-            # Wait for events
+            if remaining <= 0: break
             done, _ = await asyncio.wait(
                 [video_future, error_future],
                 timeout=min(2.0, remaining),
                 return_when=asyncio.FIRST_COMPLETED,
             )
-            # History poll every 3s (backup — catches messages the handler missed
-            # due to Pyrogram update-gaps, handler crash, or connection latency)
             if not video_future.done() and not error_future.done() and time.time() - last_poll > 3.0:
                 last_poll = time.time()
                 try:
-                    count = 0
-                    async for hm in client.get_chat_history(bot_chat, limit=15):
+                    async for hm in client.get_chat_history(bot_chat, limit=12):
                         try:
-                            mid = _safe_getattr(hm, "id") or 0
-                            if mid and mid <= latest_seen_id:
-                                break
-                            if mid > latest_seen_id:
-                                latest_seen_id = mid
-                            if _safe_getattr(hm, "outgoing"):
-                                continue
-                            md = _safe_getattr(hm, "date")
-                            if md and md.timestamp() < sent_ts[0] - 3:
-                                break
-                            count += 1
+                            mid = _sg(hm, "id") or 0
+                            if mid and mid <= latest_seen_id[0]: break
+                            if mid > latest_seen_id[0]: latest_seen_id[0] = mid
+                            if _sg(hm, "outgoing"): continue
+                            md = _sg(hm, "date")
+                            if md and md.timestamp() < sent_ts[0] - 3: break
                             await _process_message(client, hm)
-                            if video_future.done() or error_future.done():
-                                break
-                        except Exception:
-                            continue
-                except Exception:
-                    pass
-            # Heartbeat
+                            if video_future.done() or error_future.done(): break
+                        except Exception: continue
+                except Exception: pass
             with jobs_lock:
                 jobs[job_id]["wait_sec"] = int(time.time() - t0)
-                if video_future.done():
-                    jobs[job_id]["status"] = "downloading_from_bot"
-                elif clicked_flag["v"]:
+                if video_future.done() or clicked_flag["v"]:
                     jobs[job_id]["status"] = "downloading_from_bot"
                 else:
                     jobs[job_id]["status"] = "contacting_bot"
             if error_future.done():
                 raise RuntimeError(error_future.result())
-            if video_future.done():
-                break
-
+            if video_future.done(): break
         if not video_future.done():
-            raise RuntimeError(f"@{bot_uname} ne time me video nahi bheji (timeout)")
+            raise RuntimeError(f"@{bot_uname} ne time me video nahi bheji")
 
-        # ----- DOWNLOAD THE MEDIA FILE -----
         media_msg = video_future.result()
-        v = _safe_getattr(media_msg, "video")
-        d = _safe_getattr(media_msg, "document")
+        v = _sg(media_msg, "video")
+        d = _sg(media_msg, "document")
         media = v if v else d
-        vname = "video.mp4"
-        fsize = 0
+        vname = "video.mp4"; fsize = 0
         try:
-            cand = _safe_getattr(media, "file_name")
+            cand = _sg(media, "file_name")
             if cand: vname = cand
-            fsize = _safe_getattr(media, "file_size") or 0
-        except Exception:
-            pass
-        # Sanitize filename
+            fsize = _sg(media, "file_size") or 0
+        except Exception: pass
         vname = sanitize(vname) or "video.mp4"
         out_path = DOWNLOAD_DIR / f"{job_id}_{bot_uname}_{vname}"
-        print(f"[bot {bot_uname}] media received size={fsize} name={vname} -> {out_path}", flush=True)
+        print(f"[bot {bot_uname}] media received size={fsize} name={vname}", flush=True)
         last_chunk_t = [time.time()]
-        def _progress(current, total):
+        def _prog(cur, tot):
             last_chunk_t[0] = time.time()
         with jobs_lock:
             jobs[job_id]["status"] = "downloading_from_bot"
-            if fsize:
-                jobs[job_id]["filesize"] = fsize
+            if fsize: jobs[job_id]["filesize"] = fsize
+        dl = None
         try:
             dl = await asyncio.wait_for(
-                client.download_media(media_msg, file_name=str(out_path), progress=_progress),
-                timeout=180,
+                client.download_media(media_msg, file_name=str(out_path), progress=_prog),
+                timeout=240,
             )
-            if time.time() - last_chunk_t[0] > 120:
+            if time.time() - last_chunk_t[0] > 90:
                 raise RuntimeError(f"@{bot_uname} se file download stalled")
         except asyncio.TimeoutError:
-            # Check if partial file exists and is big enough
             if out_path.exists() and out_path.stat().st_size > 1024*100:
                 dl = str(out_path)
             else:
@@ -464,155 +443,149 @@ async def _bot_download_one(bot_name, url, job_id, api_id, api_hash, session_str
         except Exception as e:
             raise RuntimeError(f"@{bot_uname} download error: {e}")
         if not dl or not Path(dl).exists():
-            # Try finding file by glob (Pyrogram sometimes changes extension)
-            import glob
             cands = list(DOWNLOAD_DIR.glob(f"{job_id}_{bot_uname}_*"))
             cands = [p for p in cands if p.stat().st_size > 1024]
             if cands:
                 cands.sort(key=lambda p: p.stat().st_mtime, reverse=True)
                 dl = str(cands[0])
             else:
-                raise RuntimeError(f"@{bot_uname} se download fail (file nahi mili)")
+                raise RuntimeError(f"@{bot_uname} se file nahi mili")
         fp = Path(dl)
         if fp.stat().st_size < 1024:
-            raise RuntimeError(f"@{bot_uname} se download fail (khaali file)")
+            raise RuntimeError("File khaali hai")
         print(f"[bot {bot_uname}] saved {fp.name} ({fp.stat().st_size} bytes)", flush=True)
         return fp.name, title_box["t"]
+    finally:
+        try: client.remove_handler(grp, _HANDLER_GROUP)
+        except Exception: pass
 
 
-def download_via_bots(job_id, url):
-    """Try each configured bot in order; first success wins."""
-    if not HAS_PYROGRAM:
-        raise RuntimeError("Pyrogram install nahi hai — pip install pyrogram tgcrypto")
-    make_event_loop()
-    api_id = int(os.environ.get("TELEGRAM_API_ID", "0"))
-    api_hash = os.environ.get("TELEGRAM_API_HASH", "")
-    session = os.environ.get("TELEGRAM_SESSION_STRING", "")
-    if not api_id or not api_hash or not session:
-        raise RuntimeError("Telegram credentials env me nahi hain.")
-
+async def _process_job(job_id, url):
+    """Run a job against all bots until one succeeds."""
+    disp = BOT_DISPLAY["default"]
     errors = []
     bot_order = _get_bot_order(url)
-    print(f"[job {job_id}] bot order for {detect_platform(url)}: {bot_order}", flush=True)
+    print(f"[job {job_id}] start platform={detect_platform(url)} order={bot_order}", flush=True)
+    # Wait for client to be ready
+    for _ in range(50):
+        if _tg_client and _tg_client.is_connected: break
+        await asyncio.sleep(1)
+    else:
+        with jobs_lock:
+            jobs[job_id]["status"] = "error"
+            jobs[job_id]["error"] = "Telegram client ready nahi hai"
+        return
     for bot_name in bot_order:
-        disp = BOT_DISPLAY.get(bot_name.lower(), BOT_DISPLAY["default"])
         with jobs_lock:
             jobs[job_id]["backend"] = disp["backend"]
             jobs[job_id]["bot"] = disp["bot_label"]
         try:
-            fn, title = asyncio.run(_bot_download_one(bot_name, url, job_id, api_id, api_hash, session))
+            fn, title = await _bot_download_one(bot_name, url, job_id)
             fp = DOWNLOAD_DIR / fn
             if fp.exists() and fp.stat().st_size > 1024:
                 with jobs_lock:
                     jobs[job_id].update(
                         status="done", title=title, filename=fn,
-                        filesize=fp.stat().st_size,
+                        filesize=fp.stat().st_size, backend=disp["backend"], bot=disp["bot_label"],
                     )
-                print(f"[job {job_id}] ✅ @{bot_name} se download hua: {fn} ({human_size(fp.stat().st_size)})")
+                print(f"[job {job_id}] ✅ @{bot_name} done {fn} ({human_size(fp.stat().st_size)})", flush=True)
                 return
         except Exception as e:
-            msg = f"@{bot_name}: {str(e)[:150]}"
-            errors.append(msg)
-            print(f"[job {job_id}] ❌ bot @{bot_name} fail: {e}")
-    raise RuntimeError(" | ".join(errors) or "Saare bots fail ho gaye")
-
-
-def download_via_telegram(job_id, url):
-    return download_via_bots(job_id, url)
-
-# ------------- yt-dlp (fallback, for local/dev) -------------
-YTDL_COMMON = {
-    "quiet": True, "no_warnings": True, "noplaylist": True,
-    "geo_bypass": True, "socket_timeout": 25,
-    "retries": 2, "fragment_retries": 2,
-    "concurrent_fragment_downloads": 4,
-    "nocheckcertificate": True, "prefer_ffmpeg": True,
-    "merge_output_format": "mp4",
-    "extractor_args": {
-        "youtube": {"player_client": ["mweb","android","ios"], "player_skip": ["js","webpage"]},
-    },
-    "skip_unavailable_fragments": True,
-    "no_color": True,
-}
-
-def _ytdlp_run(url, outtmpl, format_id=None, fetch_only=False):
-    opts = dict(YTDL_COMMON)
-    opts["outtmpl"] = outtmpl
-    for fp in ("/usr/bin/ffmpeg","/usr/local/bin/ffmpeg"):
-        if Path(fp).exists():
-            opts["ffmpeg_location"] = fp; break
-    if fetch_only:
-        opts["skip_download"] = True
-    if format_id and format_id not in ("1","best","0","mp4",""):
-        opts["format"] = f"({format_id})/18/bv*[ext=mp4]+ba[ext=m4a]/b[ext=mp4]/best"
-    else:
-        opts["format"] = "18/bv*[ext=mp4]+ba[ext=m4a]/b[ext=mp4]/best"
-    with yt_dlp.YoutubeDL(opts) as ydl:
-        info = ydl.extract_info(url, download=not fetch_only)
-        if info.get("_type") == "playlist":
-            info = info["entries"][0]
-        if fetch_only:
-            return info
-        fn = Path(ydl.prepare_filename(info))
-        if not fn.exists():
-            for ext in ("mp4","mkv","webm","m4a","mp3","mov"):
-                cand = fn.with_suffix(f".{ext}")
-                if cand.exists(): fn = cand; break
-        return info, fn
-
-def download_ytdlp(job_id, url, format_id, time_budget=120):
-    with jobs_lock:
-        if jobs[job_id].get("status") in ("done","error"): return
-        jobs[job_id]["status"] = "downloading"
-        jobs[job_id]["backend"] = "yt-dlp"
-    done_evt = threading.Event(); err_box = []
-    def _run():
-        try:
-            outtmpl = str(DOWNLOAD_DIR / f"{job_id}.%(ext)s")
-            info, fn = _ytdlp_run(url, outtmpl, format_id=format_id)
-            with jobs_lock:
-                if jobs[job_id].get("status") in ("done","error"): return
-                jobs[job_id].update(status="done", title=info.get("title","Video"),
-                                    filename=fn.name, filesize=fn.stat().st_size)
-        except Exception as e:
-            err_box.append(e)
-        finally:
-            done_evt.set()
-    t = threading.Thread(target=_run, daemon=True); t.start()
-    done_evt.wait(timeout=time_budget)
-    if not done_evt.is_set():
-        raise TimeoutError(f"yt-dlp {time_budget}s me complete nahi hua")
-    if err_box:
-        raise err_box[0]
-
-# ------------- Smart wrapper: BOTS first → yt-dlp fallback -------------
-def download_auto(job_id, url, format_id=None):
-    """Bots first (works everywhere, fast). yt-dlp only when bots unavailable or fail."""
-    tele_ok = bool(HAS_PYROGRAM and os.environ.get("TELEGRAM_SESSION_STRING")
-                   and os.environ.get("TELEGRAM_API_ID") and BOT_LIST)
-    if tele_ok:
-        with jobs_lock:
-            jobs[job_id]["status"] = "queued"
-        try:
-            download_via_bots(job_id, url)
-            return
-        except Exception as e1:
-            err1 = str(e1)[:300]
-    else:
-        err1 = "Telegram configured nahi hai"
-
-    # Bots fail gaye → yt-dlp last resort
+            msg = str(e)[:200]
+            errors.append(f"@{bot_name}: {msg}")
+            print(f"[job {job_id}] ❌ @{bot_name} fail: {e}", flush=True)
+    # Bots failed -> try yt-dlp last resort for ALL platforms
     if HAS_YTDLP:
         try:
-            download_ytdlp(job_id, url, format_id)
+            fn, title, sz = await _ytdlp_download(job_id, url)
+            with jobs_lock:
+                jobs[job_id].update(status="done", title=title, filename=fn,
+                                    filesize=sz, backend=disp["backend"], bot=disp["bot_label"])
+            print(f"[job {job_id}] ✅ yt-dlp fallback done ({human_size(sz)})", flush=True)
             return
-        except Exception as e2:
-            err_final = f"Telegram: {err1} | yt-dlp: {str(e2)[:200]}"
-    else:
-        err_final = err1
+        except Exception as e:
+            errors.append(f"yt-dlp: {str(e)[:120]}")
+            print(f"[job {job_id}] ❌ yt-dlp fail: {str(e)[:120]}", flush=True)
+    err = " | ".join(errors) or "Saare bots fail"
     with jobs_lock:
         jobs[job_id]["status"] = "error"
-        jobs[job_id]["error"] = err_final
+        jobs[job_id]["error"] = err
+
+
+async def _ytdlp_download(job_id, url):
+    """yt-dlp fallback (run in thread)."""
+    def _run():
+        outtmpl = str(DOWNLOAD_DIR / f"{job_id}_ytdlp.%(ext)s")
+        opts = {
+            "quiet": True, "no_warnings": True, "noplaylist": True,
+            "geo_bypass": True, "socket_timeout": 25, "retries": 3,
+            "fragment_retries": 3, "concurrent_fragment_downloads": 4,
+            "nocheckcertificate": True, "prefer_ffmpeg": True,
+            "merge_output_format": "mp4", "outtmpl": outtmpl,
+            "format": "bv*[ext=mp4]+ba[ext=m4a]/b[ext=mp4]/bv*+ba/best",
+            "extractor_args": {"youtube": {"player_client": ["android","web"]}},
+            "http_headers": {
+                "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0 Safari/537.36",
+            },
+        }
+        with yt_dlp.YoutubeDL(opts) as ydl:
+            info = ydl.extract_info(url, download=True)
+            if info.get("_type") == "playlist":
+                info = info["entries"][0]
+            fn = Path(ydl.prepare_filename(info))
+            if not fn.exists():
+                for ext in ("mp4","mkv","webm","m4a"):
+                    c = fn.with_suffix(f".{ext}")
+                    if c.exists(): fn = c; break
+            return info, fn
+    loop = asyncio.get_running_loop()
+    with jobs_lock:
+        jobs[job_id]["status"] = "downloading"
+        jobs[job_id]["backend"] = "Zyrox Server"
+    info, fn = await asyncio.wait_for(loop.run_in_executor(None, _run), timeout=150)
+    return fn.name, info.get("title","Video"), fn.stat().st_size
+
+
+async def _queue_worker():
+    """Worker that processes queued jobs one at a time on the shared client."""
+    await _tg_started.wait()
+    print("[tg] queue worker ready", flush=True)
+    while True:
+        job_id, url = await _job_queue.get()
+        try:
+            await _process_job(job_id, url)
+        except Exception as e:
+            print(f"[job {job_id}] uncaught: {e}", flush=True)
+            with jobs_lock:
+                if jobs.get(job_id, {}).get("status") not in ("done",):
+                    jobs[job_id]["status"] = "error"
+                    jobs[job_id]["error"] = str(e)[:200]
+        finally:
+            _job_queue.task_done()
+
+
+def _start_async_loop():
+    global _tg_loop
+    loop = asyncio.new_event_loop()
+    _tg_loop = loop
+    asyncio.set_event_loop(loop)
+    try:
+        loop.create_task(_client_keepalive())
+        loop.create_task(_queue_worker())
+        loop.run_forever()
+    except Exception as e:
+        print(f"[tg] loop died: {e}", flush=True)
+
+_tg_thread = threading.Thread(target=_start_async_loop, daemon=True)
+_tg_thread.start()
+# Wait briefly for client to start (don't block requests)
+_tg_ready.wait(timeout=15)
+
+def enqueue_download(job_id, url):
+    """Submit a job to the async engine from a Flask thread."""
+    with jobs_lock:
+        jobs[job_id]["status"] = "queued"
+    _tg_loop.call_soon_threadsafe(asyncio.ensure_future, _job_queue.put((job_id, url)))
 
 # ------------- Routes -------------
 @app.route("/")
@@ -622,99 +595,49 @@ def home():
 
 @app.route("/api/health")
 def health():
+    connected = bool(_tg_client and _tg_client.is_connected)
     return jsonify({"ok": True, "backend": "Zyrox Server", "bots": BOT_LIST,
-                    "primary": BOT_LIST[0] if BOT_LIST else None,
-                    "brand": "ZYROX DOWNLOADER", "operator": "Toxic Arjun Bot"})
-
-@app.route("/api/fetch", methods=["POST"])
-def api_fetch():
-    data = request.get_json(silent=True) or {}
-    url = (data.get("url") or "").strip()
-    if not url or not URL_REGEX.match(url):
-        return jsonify({"ok": False, "error": "Valid URL daalein."}), 400
-    # In bot-first mode, skip fetch_info (it's slow / blocked on cloud) and go straight to job
-    if BACKEND in ("telegram","auto") and BOT_LIST:
-        job_id = uuid.uuid4().hex[:12]
-        with jobs_lock:
-            jobs[job_id] = {"status":"queued","url":url,"created":time.time(),"platform":detect_platform(url)}
-        threading.Thread(target=download_auto, args=(job_id,url,None), daemon=True).start()
-        return jsonify({"ok": True, "job_id": job_id, "direct": True,
-                        "platform": detect_platform(url)})
-    if HAS_YTDLP:
-        try:
-            # Best-effort info fetch (might fail on cloud)
-            info = None
-            def _run(box):
-                try: box.append(_ytdlp_run(url, "", fetch_only=True))
-                except Exception as e: box.append(e)
-            box=[]
-            th = threading.Thread(target=_run, args=(box,), daemon=True); th.start()
-            th.join(timeout=20)
-            if box and not isinstance(box[0], Exception):
-                info = box[0]
-            if info:
-                fmts = []
-                for f in info.get("formats",[]):
-                    if f.get("vcodec")=="none" and f.get("acodec")=="none": continue
-                    if f.get("ext") not in ("mp4","webm","m4v","mov","mkv","mp3","m4a"): continue
-                    sz = f.get("filesize") or f.get("filesize_approx") or 0
-                    fmts.append({"format_id":f["format_id"],"ext":f.get("ext","mp4"),
-                                 "resolution":f.get("resolution") or f.get("quality") or "best",
-                                 "has_video":f.get("vcodec")!="none","has_audio":f.get("acodec")!="none",
-                                 "filesize":sz,"filesize_human":human_size(sz) if sz else "—"})
-                seen=set(); uniq=[]
-                for f in sorted(fmts, key=lambda x:(x["has_video"],x["filesize"] or 0), reverse=True):
-                    k=(f["resolution"],f["ext"])
-                    if k in seen: continue
-                    seen.add(k); uniq.append(f)
-                    if len(uniq)>=6: break
-                return jsonify({"ok":True,"info":{
-                    "title":info.get("title","Video"),"thumbnail":info.get("thumbnail") or "",
-                    "duration":info.get("duration") or 0,"platform":detect_platform(url),
-                    "uploader":info.get("uploader") or info.get("channel") or "","formats":uniq}})
-        except Exception:
-            pass
-    # Fall through to direct job
-    job_id = uuid.uuid4().hex[:12]
-    with jobs_lock:
-        jobs[job_id] = {"status":"queued","url":url,"created":time.time(),"platform":detect_platform(url)}
-    threading.Thread(target=download_auto, args=(job_id,url,None), daemon=True).start()
-    return jsonify({"ok": True, "job_id": job_id, "direct": True, "platform": detect_platform(url)})
+                    "tg_connected": connected, "brand": "ZYROX DOWNLOADER",
+                    "operator": "Toxic Arjun Bot"})
 
 @app.route("/api/download", methods=["POST"])
 def api_download():
     data = request.get_json(silent=True) or {}
     url = (data.get("url") or "").strip()
-    format_id = data.get("format_id") or None
     if not url:
-        return jsonify({"ok":False,"error":"URL chahiye."}),400
+        return jsonify({"ok": False, "error": "URL chahiye."}), 400
+    if not URL_REGEX.match(url):
+        return jsonify({"ok": False, "error": "Valid URL daalein."}), 400
     job_id = uuid.uuid4().hex[:12]
     with jobs_lock:
-        jobs[job_id] = {"status":"queued","url":url,"created":time.time(),"platform":detect_platform(url)}
-    if BACKEND == "ytdlp":
-        t = threading.Thread(target=download_ytdlp, args=(job_id,url,format_id), daemon=True)
-    elif BACKEND == "telegram":
-        t = threading.Thread(target=download_via_bots, args=(job_id,url), daemon=True)
-    else:
-        t = threading.Thread(target=download_auto, args=(job_id,url,format_id), daemon=True)
-    t.start()
+        jobs[job_id] = {"status":"queued","url":url,"created":time.time(),
+                        "platform":detect_platform(url),
+                        "backend":"Zyrox Server","bot":"🤖 Toxic Arjun Bot"}
+    enqueue_download(job_id, url)
     return jsonify({"ok": True, "job_id": job_id})
+
+# /api/fetch alias (for compatibility)
+@app.route("/api/fetch", methods=["POST"])
+def api_fetch():
+    return api_download()
 
 @app.route("/api/status/<job_id>")
 def api_status(job_id):
     job = jobs.get(job_id)
-    if not job: return jsonify({"ok":False,"error":"Job nahi mila."}),404
+    if not job: return jsonify({"ok": False, "error": "Job nahi mila."}), 404
     resp = dict(job)
     if job.get("filesize"): resp["filesize_human"] = human_size(job["filesize"])
-    return jsonify({"ok":True,"job":resp})
+    # Always override branding
+    resp["backend"] = "Zyrox Server"
+    resp["bot"] = "🤖 Toxic Arjun Bot"
+    return jsonify({"ok": True, "job": resp})
 
 @app.route("/files/<path:name>")
 def serve_file(name):
-    if "/" in name or ".." in name: return ("Bad path",400)
+    if "/" in name or ".." in name: return ("Bad path", 400)
     return send_from_directory(DOWNLOAD_DIR, name, as_attachment=True)
 
 if __name__ == "__main__":
-    port = int(os.environ.get("PORT","5000"))
-    debug = os.environ.get("FLASK_DEBUG","0")=="1"
-    print(f"🎬 VideoSaver — backend={BACKEND}, bots={BOT_LIST} (primary=@{BOT_LIST[0] if BOT_LIST else 'none'}), port={port}")
-    app.run(host="0.0.0.0", port=port, debug=debug)
+    port = int(os.environ.get("PORT", "5000"))
+    print(f"🎬 ZYROX DOWNLOADER — port={port} bots={BOT_LIST}", flush=True)
+    app.run(host="0.0.0.0", port=port, debug=False, threaded=True)
