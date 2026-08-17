@@ -118,6 +118,8 @@ def _clean_user_text(t):
     if not t: return ""
     s = str(t)
     import re as _re
+    # Strip zero-width / invisible characters
+    s = _re.sub(r"[\u200b-\u200f\u202a-\u202e\u2060-\u206f\ufeff]", "", s)
     # Remove t.me/... links
     s = _re.sub(r"t\.me/\S+", "", s, flags=_re.I)
     # Remove @usernames
@@ -130,11 +132,13 @@ def _clean_user_text(t):
         r"powered\s*by[^\n]*",
         r"join\s+(?:our|my|the)?\s*(?:channel|group|chat|update)[^\n]*",
         r"subscribe\s*(?:to|our|for)[^\n]*",
-        r"🤖[^\n]*", r"📥[^\n]*", r"⬇[^\n]*", r"👉[^\n]*", r"🔗[^\n]*",
-        r"bot[^\n]*",
+        r"🤖[^\n]*", r"📥[^\n]*", r"⬇[️]?[^\n]*", r"👉[^\n]*", r"🔗[^\n]*",
     ]
     for pat in credit_patterns:
         s = _re.sub(pat, "", s, flags=_re.I)
+    # Collapse leading emoji that were next to removed credits
+    s = _re.sub(r"^[\s\W_]*📹[\s\W_]*", "", s)
+    s = _re.sub(r"^[\s\W_]+", "", s)
     # Collapse whitespace
     s = _re.sub(r"[|\-–_:•·]{2,}", " ", s)
     s = _re.sub(r"\s{2,}", " ", s).strip(" -–_:|•·\n\r\t")
