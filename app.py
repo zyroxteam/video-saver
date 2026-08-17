@@ -143,6 +143,9 @@ GATE_KEYWORDS = [
     "confirm","continue","subscribed","✅","i have joined","begin",
     "start","get started","next","proceed","yes","i'm in","okay","ok",
     "download","get video","get link","send video","mp4","tap here",
+    "click here","generate","generate link","create link",
+    "i've joined","already joined","joined","skip","continue to",
+    "video","hd","sd","get","go","open","press",
 ]
 FATAL_ERROR_KW = [
     "not found","doesn't support","does not support","unable to",
@@ -368,12 +371,12 @@ async def _bot_download_one(bot_name, url, job_id):
         state["ready"] = False
         try: await client.send_message(bot_chat, "/cancel")
         except Exception: pass
-        await asyncio.sleep(0.8)
+        await asyncio.sleep(1.5)
         try:
-            async for _ in client.get_chat_history(bot_chat, limit=10):
+            async for _ in client.get_chat_history(bot_chat, limit=15):
                 pass
         except Exception: pass
-        await asyncio.sleep(0.4)
+        await asyncio.sleep(0.6)
         state["ready"] = True
 
         await client.send_message(bot_chat, url)
@@ -382,7 +385,7 @@ async def _bot_download_one(bot_name, url, job_id):
         with jobs_lock:
             jobs[job_id]["status"] = "contacting_bot"
 
-        total_deadline = t0 + 55          # wait for quality selection max 55s
+        total_deadline = t0 + 80          # wait for quality selection max 80s
         got_extend = False
         last_poll = 0.0
         while time.time() < total_deadline:
