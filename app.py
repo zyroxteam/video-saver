@@ -370,10 +370,8 @@ async def _bot_download_one(bot_name, url, job_id, api_id, api_hash, session_str
                 client.download_media(media_msg, file_name=str(out_path), progress=_progress),
                 timeout=180,
             )
-            # If download seemed to hang silently (no chunks received for long), treat as timeout
             if time.time() - last_chunk_t[0] > 120:
-                raise asyncio.TimeoutError()
-        except asyncio.TimeoutError:
+                raise RuntimeError(f"@{bot_uname} se file download stalled")
         except asyncio.TimeoutError:
             # Check if partial file exists and is big enough
             if out_path.exists() and out_path.stat().st_size > 1024*100:
