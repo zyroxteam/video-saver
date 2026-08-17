@@ -51,8 +51,8 @@ except Exception:
 
 BACKEND = os.environ.get("DOWNLOAD_BACKEND", "auto").lower()
 
-# Primary bot = @allsaverbot (all platforms), secondary = @YTfinderbot (fast YT/IG)
-BOTS_RAW = os.environ.get("BOT_USERNAME", "allsaverbot,YTfinderbot")
+# Bot order: try YTfinderbot first (reliably delivers video), then allsaverbot
+BOTS_RAW = os.environ.get("BOT_USERNAME", "YTfinderbot,allsaverbot")
 BOT_LIST = [b.strip().lstrip("@") for b in BOTS_RAW.split(",") if b.strip()]
 
 app = Flask(__name__)
@@ -112,6 +112,7 @@ FATAL_ERROR_KW = [
     "add to group", "guruhga", "group ga", "music was not found",
     "try another link", "no video", "failed to", "cannot download",
     "can't download", "can't process", "can't find",
+    "скачать не удалось", "не удалось", "download failed",
 ]
 
 def _safe_getattr(obj, attr, default=None):
@@ -198,78 +199,95 @@ async def _bot_download_one(bot_name, url, job_id, api_id, api_hash, session_str
         if not error_future.done():
             error_future.set_result(msg)
 
-    async def message_handler(c, m):
-        if clicked_flag["_drained"] is False:
-            return  # still draining, ignore
-        # Only process msgs from the bot that arrived after we sent the URL
+    async def _process_message(c, m):
+        """Process a single message (called from both handler and history poll).
+        Every attribute access is wrapped so ONE bad field can't crash the handler."""
         try:
-            chat_uname = ""
-            if m.chat:
-                chat_uname = (m.chat.username or "").lower()
-            if chat_uname and chat_uname != bot_uname:
+            if clicked_flag["_drained"] is False:
                 return
-            if getattr(m, "outgoing", False):
+            # Skip outgoing
+            if _safe_getattr(m, "outgoing"):
                 return
-            if m.date and sent_ts[0] and m.date.timestamp() < sent_ts[0] - 3:
-                return
-        except Exception:
-            return
-
-        # 1. Video?
-        v = _safe_getattr(m, "video")
-        d = _safe_getattr(m, "document")
-        d_mime = (_safe_getattr(d, "mime_type") or "") if d else ""
-        if v or (d and d_mime.startswith("video/")):
-            if not video_future.done():
-                cap = _safe_text(m, "caption")
-                if cap: title_box["t"] = cap[:120]
-                video_future.set_result(m)
-            return
-
-        # 2. Skip audio
-        if _has_attr(m, "audio"):
-            return
-
-        # 3. Photo/animation thumbnail — extract caption
-        if _has_attr(m, "photo") or _has_attr(m, "animation") or _has_attr(m, "video_note"):
-            cap = _safe_text(m, "caption")
-            if cap and (not title_box["t"] or title_box["t"] == "Video"):
-                title_box["t"] = cap[:120]
-            # fall through to button/error check (photo msgs often have buttons attached)
-
-        # 4. Text error detection
-        mtxt = _safe_text(m, "text") or _safe_text(m, "caption")
-        if mtxt:
-            tl = mtxt.lower()
-            # Skip /cancel echo / search results
-            if mtxt.strip().startswith("🔍") or mtxt.strip() in ("/cancel",):
+            # Time filter
+            try:
+                md = _safe_getattr(m, "date")
+                if md and sent_ts[0] and md.timestamp() < sent_ts[0] - 3:
+                    return
+            except Exception:
                 pass
-            elif not clicked_flag["v"] and "\n" in mtxt and re.search(r'(^|\n)\s*\d+\.\s+\S+', mtxt):
-                # Numbered list = search results; pick #1 or wait for buttons
-                pass
-            else:
-                for kw in FATAL_ERROR_KW:
-                    if kw in tl:
-                        # "Failed" / "error" alone isn't enough; require a short message
-                        if len(mtxt) < 250 or "not support" in tl or "guruhga" in tl:
-                            _set_err(f"@{bot_uname} ye URL support nahi karta")
-                            return
-
-        # 5. Auto-click a button (only once, before video arrives)
-        if not video_future.done() and not error_future.done():
-            rm = _safe_getattr(m, "reply_markup")
-            btn = _pick_button(bot_uname, m) if rm else None
-            if btn and not clicked_flag["v"]:
-                clicked_flag["v"] = True
+            # 1. Video/document?
+            v = _safe_getattr(m, "video")
+            d = _safe_getattr(m, "document")
+            is_video = bool(v)
+            is_vdoc = False
+            if d:
+                try:
+                    is_vdoc = (_safe_getattr(d, "mime_type") or "").startswith("video/")
+                except Exception:
+                    is_vdoc = False
+            if is_video or is_vdoc:
+                if not video_future.done():
+                    cap = _safe_text(m, "caption")
+                    if cap:
+                        title_box["t"] = cap[:120]
+                    video_future.set_result(m)
+                return
+            # 2. Audio skip
+            if _has_attr(m, "audio"):
+                return
+            # 3. Photo/animation — caption for title
+            if _has_attr(m, "photo") or _has_attr(m, "animation") or _has_attr(m, "video_note"):
                 cap = _safe_text(m, "caption")
                 if cap and (not title_box["t"] or title_box["t"] == "Video"):
                     title_box["t"] = cap[:120]
-                with jobs_lock:
-                    jobs[job_id]["status"] = "selecting_quality"
-                try:
-                    await c.request_callback_answer(m.chat.id, m.id, btn.callback_data, timeout=20)
-                except Exception:
-                    pass
+            # 4. Text / error detection
+            mtxt = _safe_text(m, "text") or _safe_text(m, "caption")
+            if mtxt:
+                tl = mtxt.lower()
+                if not (mtxt.strip().startswith("🔍") or mtxt.strip() == "/cancel"):
+                    is_search_list = ("\n" in mtxt) and bool(re.search(r'(^|\n)\s*\d+\.\s+\S+', mtxt))
+                    if not is_search_list or clicked_flag["v"]:
+                        for kw in FATAL_ERROR_KW:
+                            if kw in tl:
+                                if len(mtxt) < 250 or "not support" in tl or "guruhga" in tl:
+                                    _set_err(f"@{bot_uname} ye URL support nahi karta")
+                                    return
+            # 5. Auto-click button (fire-and-forget, don't await answer)
+            if not video_future.done() and not error_future.done():
+                rm = _safe_getattr(m, "reply_markup")
+                btn = _pick_button(bot_uname, m) if rm else None
+                if btn and not clicked_flag["v"]:
+                    clicked_flag["v"] = True
+                    cap = _safe_text(m, "caption")
+                    if cap and (not title_box["t"] or title_box["t"] == "Video"):
+                        title_box["t"] = cap[:120]
+                    with jobs_lock:
+                        jobs[job_id]["status"] = "selecting_quality"
+                    async def _do_click():
+                        try:
+                            await c.request_callback_answer(m.chat.id, m.id, btn.callback_data, timeout=60)
+                        except Exception:
+                            pass
+                    asyncio.create_task(_do_click())
+        except Exception as e:
+            # Never let one bad message kill the whole handler
+            print(f"[bot {bot_uname}] handler error (ignored): {type(e).__name__}: {e}", flush=True)
+
+    async def message_handler(c, m):
+        # Wrap EVERY call so Pyrogram's dispatcher never sees an exception
+        try:
+            # Basic chat filter
+            try:
+                ch = _safe_getattr(m, "chat")
+                if ch:
+                    cu = (_safe_getattr(ch, "username") or "").lower()
+                    if cu and cu != bot_uname:
+                        return
+            except Exception:
+                pass
+            await _process_message(c, m)
+        except Exception as e:
+            print(f"[bot {bot_uname}] outer handler err: {e}", flush=True)
 
     clicked_flag["_drained"] = False
 
@@ -300,30 +318,55 @@ async def _bot_download_one(bot_name, url, job_id, api_id, api_hash, session_str
             jobs[job_id]["status"] = "contacting_bot"
 
         # ----- WAIT LOOP -----
-        # Total budget: 25s for the bot to acknowledge & (if needed) show buttons
-        # + 90s after click for video to arrive
+        # Budgets: 35s pre-click (button/video), 120s post-click for video
         total_deadline = t0 + 150
         got_click_extend = False
+        last_poll = 0.0
+        latest_seen_id = 0
 
         while time.time() < total_deadline:
-            # Determine wait window
             if not clicked_flag["v"]:
-                wait_window = 30  # 30s to get a button or direct video
-                remaining = min(wait_window, total_deadline - time.time())
+                remaining = min(35, total_deadline - time.time())
             else:
                 if not got_click_extend:
-                    total_deadline = time.time() + 90  # 90s after click
+                    total_deadline = time.time() + 120
                     got_click_extend = True
                 remaining = total_deadline - time.time()
             if remaining <= 0:
                 break
-            # Wait for either future
+            # Wait for events
             done, _ = await asyncio.wait(
                 [video_future, error_future],
                 timeout=min(2.0, remaining),
                 return_when=asyncio.FIRST_COMPLETED,
             )
-            # Heartbeat status
+            # History poll every 3s (backup — catches messages the handler missed
+            # due to Pyrogram update-gaps, handler crash, or connection latency)
+            if not video_future.done() and not error_future.done() and time.time() - last_poll > 3.0:
+                last_poll = time.time()
+                try:
+                    count = 0
+                    async for hm in client.get_chat_history(bot_chat, limit=15):
+                        try:
+                            mid = _safe_getattr(hm, "id") or 0
+                            if mid and mid <= latest_seen_id:
+                                break
+                            if mid > latest_seen_id:
+                                latest_seen_id = mid
+                            if _safe_getattr(hm, "outgoing"):
+                                continue
+                            md = _safe_getattr(hm, "date")
+                            if md and md.timestamp() < sent_ts[0] - 3:
+                                break
+                            count += 1
+                            await _process_message(client, hm)
+                            if video_future.done() or error_future.done():
+                                break
+                        except Exception:
+                            continue
+                except Exception:
+                    pass
+            # Heartbeat
             with jobs_lock:
                 jobs[job_id]["wait_sec"] = int(time.time() - t0)
                 if video_future.done():
@@ -332,7 +375,6 @@ async def _bot_download_one(bot_name, url, job_id, api_id, api_hash, session_str
                     jobs[job_id]["status"] = "downloading_from_bot"
                 else:
                     jobs[job_id]["status"] = "contacting_bot"
-
             if error_future.done():
                 raise RuntimeError(error_future.result())
             if video_future.done():
