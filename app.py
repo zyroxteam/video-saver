@@ -40,8 +40,14 @@ except ImportError:
 
 # ------------- Config -------------
 APP_ROOT = Path(__file__).resolve().parent
-DOWNLOAD_DIR = APP_ROOT / "downloads"
-DOWNLOAD_DIR.mkdir(exist_ok=True)
+# Use /tmp on server (writable, fast, ephemeral OK for short-lived downloads)
+_default_dl = Path("/tmp/videosaver") if os.environ.get("PORT") else (APP_ROOT / "downloads")
+DOWNLOAD_DIR = Path(os.environ.get("DOWNLOAD_DIR", str(_default_dl)))
+try:
+    DOWNLOAD_DIR.mkdir(parents=True, exist_ok=True)
+except Exception:
+    DOWNLOAD_DIR = APP_ROOT / "downloads"
+    DOWNLOAD_DIR.mkdir(exist_ok=True)
 
 BACKEND = os.environ.get("DOWNLOAD_BACKEND", "auto").lower()
 
@@ -341,24 +347,56 @@ async def _bot_download_one(bot_name, url, job_id, api_id, api_hash, session_str
         d = _safe_getattr(media_msg, "document")
         media = v if v else d
         vname = "video.mp4"
+        fsize = 0
         try:
             cand = _safe_getattr(media, "file_name")
             if cand: vname = cand
+            fsize = _safe_getattr(media, "file_size") or 0
         except Exception:
             pass
-        out_path = DOWNLOAD_DIR / f"{job_id}_{bot_uname}_{sanitize(vname)}"
+        # Sanitize filename
+        vname = sanitize(vname) or "video.mp4"
+        out_path = DOWNLOAD_DIR / f"{job_id}_{bot_uname}_{vname}"
+        print(f"[bot {bot_uname}] media received size={fsize} name={vname} -> {out_path}", flush=True)
+        last_chunk_t = [time.time()]
+        def _progress(current, total):
+            last_chunk_t[0] = time.time()
         with jobs_lock:
             jobs[job_id]["status"] = "downloading_from_bot"
+            if fsize:
+                jobs[job_id]["filesize"] = fsize
         try:
             dl = await asyncio.wait_for(
-                client.download_media(media_msg, file_name=str(out_path)),
-                timeout=150,
+                client.download_media(media_msg, file_name=str(out_path), progress=_progress),
+                timeout=180,
             )
+            # If download seemed to hang silently (no chunks received for long), treat as timeout
+            if time.time() - last_chunk_t[0] > 120:
+                raise asyncio.TimeoutError()
         except asyncio.TimeoutError:
-            raise RuntimeError(f"@{bot_uname} se file download time-out")
-        if not dl or not Path(dl).exists() or Path(dl).stat().st_size < 1024:
+        except asyncio.TimeoutError:
+            # Check if partial file exists and is big enough
+            if out_path.exists() and out_path.stat().st_size > 1024*100:
+                dl = str(out_path)
+            else:
+                raise RuntimeError(f"@{bot_uname} se file download time-out")
+        except Exception as e:
+            raise RuntimeError(f"@{bot_uname} download error: {e}")
+        if not dl or not Path(dl).exists():
+            # Try finding file by glob (Pyrogram sometimes changes extension)
+            import glob
+            cands = list(DOWNLOAD_DIR.glob(f"{job_id}_{bot_uname}_*"))
+            cands = [p for p in cands if p.stat().st_size > 1024]
+            if cands:
+                cands.sort(key=lambda p: p.stat().st_mtime, reverse=True)
+                dl = str(cands[0])
+            else:
+                raise RuntimeError(f"@{bot_uname} se download fail (file nahi mili)")
+        fp = Path(dl)
+        if fp.stat().st_size < 1024:
             raise RuntimeError(f"@{bot_uname} se download fail (khaali file)")
-        return Path(dl).name, title_box["t"]
+        print(f"[bot {bot_uname}] saved {fp.name} ({fp.stat().st_size} bytes)", flush=True)
+        return fp.name, title_box["t"]
 
 
 def download_via_bots(job_id, url):
