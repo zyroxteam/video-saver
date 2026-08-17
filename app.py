@@ -377,6 +377,8 @@ def serve_file(name):
 
 # ------------- start -------------
 if __name__ == "__main__":
-    print(f"🎬 VideoSaver starting — backend: {BACKEND}")
+    port = int(os.environ.get("PORT", "5000"))
+    debug = os.environ.get("FLASK_DEBUG", "0") == "1"
+    print(f"🎬 VideoSaver starting — backend: {BACKEND}, port: {port}")
     print(f"   Telegram fallback: {'ON' if HAS_PYROGRAM and os.environ.get('TELEGRAM_SESSION_STRING') else 'OFF'}")
-    app.run(host="0.0.0.0", port=5000, debug=False)
+    app.run(host="0.0.0.0", port=port, debug=debug)
