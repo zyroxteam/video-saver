@@ -60,8 +60,8 @@ for _b in _extra:
 
 PLATFORM_BOTS = {
     "Facebook": ["FacebookDl_RoBot", "allsaverbot", "YTfinderbot"],
-    "YouTube": ["YTfinderbot", "allsaverbot"],
-    "TikTok": ["YTfinderbot", "allsaverbot"],
+    "YouTube": ["allsaverbot", "YTfinderbot"],
+    "TikTok": ["allsaverbot", "YTfinderbot"],
 }
 
 def _get_bot_order(url):
