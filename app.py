@@ -113,6 +113,33 @@ def human_size(n):
         n /= 1024
     return f"{n:.1f} TB"
 
+def _clean_user_text(t):
+    """Strip bot usernames, 'Downloaded via @...' credits, t.me links, subscribe prompts from user-visible strings."""
+    if not t: return ""
+    s = str(t)
+    import re as _re
+    # Remove t.me/... links
+    s = _re.sub(r"t\.me/\S+", "", s, flags=_re.I)
+    # Remove @usernames
+    s = _re.sub(r"@[A-Za-z0-9_]{2,}", "", s)
+    # Remove full URLs
+    s = _re.sub(r"https?://\S+", "", s, flags=_re.I)
+    # Remove credit / subscribe lines (case-insensitive, multi-language)
+    credit_patterns = [
+        r"downloaded\s*(?:via|by|from)?[^\n]*",
+        r"powered\s*by[^\n]*",
+        r"join\s+(?:our|my|the)?\s*(?:channel|group|chat|update)[^\n]*",
+        r"subscribe\s*(?:to|our|for)[^\n]*",
+        r"🤖[^\n]*", r"📥[^\n]*", r"⬇[^\n]*", r"👉[^\n]*", r"🔗[^\n]*",
+        r"bot[^\n]*",
+    ]
+    for pat in credit_patterns:
+        s = _re.sub(pat, "", s, flags=_re.I)
+    # Collapse whitespace
+    s = _re.sub(r"[|\-–_:•·]{2,}", " ", s)
+    s = _re.sub(r"\s{2,}", " ", s).strip(" -–_:|•·\n\r\t")
+    return s if len(s) >= 3 else "Video"
+
 # ------------- Bot config -------------
 BOT_VIDEO_KEYWORDS = {
     "allsaverbot": ["1080","720","480","360","240","hd","video","mp4","🎞","download"],
@@ -454,7 +481,7 @@ async def _bot_download_one(bot_name, url, job_id):
         if fp.stat().st_size < 1024:
             raise RuntimeError("File khaali hai")
         print(f"[bot {bot_uname}] saved {fp.name} ({fp.stat().st_size} bytes)", flush=True)
-        return fp.name, title_box["t"]
+        return fp.name, _clean_user_text(title_box["t"])
     finally:
         try: client.remove_handler(grp, _HANDLER_GROUP)
         except Exception: pass
@@ -538,7 +565,7 @@ async def _ytdlp_download(job_id, url):
     with jobs_lock:
         jobs[job_id]["status"] = "downloading"
     info, fn = await asyncio.wait_for(loop.run_in_executor(None, _run), timeout=150)
-    return fn.name, info.get("title","Video"), fn.stat().st_size
+    return fn.name, _clean_user_text(info.get("title","Video")), fn.stat().st_size
 
 
 async def _queue_worker():

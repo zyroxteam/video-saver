@@ -177,45 +177,52 @@ input[type=text]:focus{
 }
 .paste:hover{background:rgba(0,240,255,.3);box-shadow:var(--glow1);transform:translateY(-50%) scale(1.04)}
 
-/* ===== DOWNLOAD BUTTON - cyberpunk style ===== */
-.dl-btn{
-  position:relative;width:100%;padding:20px 24px;cursor:pointer;
+/* ===== BUTTON ROW ===== */
+.btn-row{display:flex;gap:12px;margin-top:6px}
+
+/* ===== FETCH BUTTON ===== */
+.fetch-btn{
+  position:relative;flex:1;padding:20px 24px;cursor:pointer;
   background:linear-gradient(135deg,rgba(0,240,255,.12) 0%,rgba(176,38,255,.15) 100%);
   border:1px solid var(--neon2);color:#fff;
-  font-family:'Orbitron',sans-serif;font-weight:900;font-size:1rem;letter-spacing:.3em;
+  font-family:'Orbitron',sans-serif;font-weight:900;font-size:1rem;letter-spacing:.25em;
   text-transform:uppercase;
   overflow:hidden;
   clip-path:polygon(0 0,calc(100% - 16px) 0,100% 50%,calc(100% - 16px) 100%,0 100%,16px 50%);
   transition:.25s;text-shadow:0 0 8px rgba(0,240,255,.6);
-  margin-top:6px;
 }
-.dl-btn::before{
+.fetch-btn::before{
   content:"";position:absolute;inset:0;
   background:linear-gradient(120deg,transparent 30%,rgba(0,240,255,.4) 50%,transparent 70%);
   transform:translateX(-100%);transition:.6s;
 }
-.dl-btn:hover::before{transform:translateX(100%)}
-.dl-btn:hover{
+.fetch-btn:hover::before{transform:translateX(100%)}
+.fetch-btn:hover{
   border-color:var(--neon1);
   box-shadow:0 0 30px rgba(0,240,255,.4),inset 0 0 30px rgba(0,240,255,.1);
   text-shadow:0 0 12px rgba(0,240,255,1);
 }
-.dl-btn:active{transform:scale(.98)}
-.dl-btn:disabled{opacity:.7;cursor:not-allowed}
-.dl-btn.loading{
+.fetch-btn:active{transform:scale(.98)}
+.fetch-btn:disabled{opacity:.7;cursor:not-allowed}
+.fetch-btn.loading{
   background:linear-gradient(135deg,rgba(0,240,255,.2),rgba(176,38,255,.2));
   border-color:var(--neon1);animation:btnpulse 1.2s ease-in-out infinite;
 }
-.dl-btn.ok{background:linear-gradient(135deg,rgba(0,255,136,.2),rgba(0,240,255,.2));
-  border-color:var(--ok);text-shadow:0 0 8px var(--ok)}
-.dl-btn.err{background:linear-gradient(135deg,rgba(255,77,109,.2),rgba(255,43,214,.15));
+.fetch-btn.err{background:linear-gradient(135deg,rgba(255,77,109,.2),rgba(255,43,214,.15));
   border-color:var(--err);text-shadow:0 0 8px var(--err)}
 @keyframes btnpulse{0%,100%{box-shadow:0 0 20px rgba(0,240,255,.4)}50%{box-shadow:0 0 40px rgba(176,38,255,.7)}}
 
-.dl-btn .inner{display:flex;align-items:center;justify-content:center;gap:12px;position:relative;z-index:2}
-.dl-btn .ico{font-size:1.3rem;filter:drop-shadow(0 0 6px currentColor)}
-.dl-btn .arrow-ico{display:inline-block;animation:slide 1.2s ease-in-out infinite}
-@keyframes slide{0%,100%{transform:translateX(0)}50%{transform:translateX(6px)}}
+.fetch-btn .inner{display:flex;align-items:center;justify-content:center;gap:12px;position:relative;z-index:2}
+.fetch-btn .ico{font-size:1.3rem;filter:drop-shadow(0 0 6px currentColor)}
+
+/* ===== NEW / ANOTHER DOWNLOAD button ===== */
+.new-btn{
+  display:block;width:100%;margin-top:10px;padding:12px 20px;cursor:pointer;
+  background:transparent;border:1px solid rgba(255,255,255,.18);color:var(--text);
+  font-family:'Orbitron',sans-serif;font-weight:700;font-size:.75rem;letter-spacing:.2em;
+  text-transform:uppercase;border-radius:2px;transition:.2s;
+}
+.new-btn:hover{border-color:var(--neon3);color:var(--neon3);box-shadow:0 0 18px rgba(255,43,214,.25)}
 
 /* scan line animation */
 .scan-line{
@@ -264,10 +271,10 @@ input[type=text]:focus{
   color:var(--neon1);text-transform:uppercase;margin-bottom:2px;font-weight:700}
 .res-meta span{font-weight:600;font-size:.95rem}
 .get-btn{
-  display:inline-flex;align-items:center;gap:10px;
-  padding:14px 26px;background:linear-gradient(135deg,var(--neon2),var(--neon3));
+  display:inline-flex;align-items:center;justify-content:center;gap:10px;width:100%;
+  padding:16px 26px;background:linear-gradient(135deg,var(--neon2),var(--neon3));
   color:#fff;text-decoration:none;font-family:'Orbitron',sans-serif;
-  font-weight:800;font-size:.82rem;letter-spacing:.2em;text-transform:uppercase;
+  font-weight:800;font-size:.85rem;letter-spacing:.25em;text-transform:uppercase;
   border:none;cursor:pointer;border-radius:2px;transition:.25s;
   box-shadow:var(--glow2);
   clip-path:polygon(0 0,calc(100% - 12px) 0,100% 50%,calc(100% - 12px) 100%,0 100%,12px 50%);
@@ -304,7 +311,7 @@ footer b{color:var(--neon1);font-family:'Orbitron',sans-serif;font-size:.75rem;l
   .card{padding:24px 18px}
   input[type=text]{padding:22px 92px 12px 14px;font-size:.95rem}
   .paste{height:34px;padding:0 10px;font-size:.62rem}
-  .dl-btn{padding:17px 18px;font-size:.82rem;letter-spacing:.2em}
+  .fetch-btn{padding:17px 14px;font-size:.8rem;letter-spacing:.15em}
   .ring-wrap{width:120px;height:120px}
   .brand-s{display:none}
 }
@@ -360,13 +367,14 @@ footer b{color:var(--neon1);font-family:'Orbitron',sans-serif;font-size:.75rem;l
       <button class="paste" id="paste">PASTE</button>
     </div>
 
-    <button class="dl-btn" id="btn">
-      <span class="inner">
-        <span class="ico">⬇</span>
-        <span>INITIATE DOWNLOAD</span>
-        <span class="arrow-ico">▶</span>
-      </span>
-    </button>
+    <div class="btn-row">
+      <button class="fetch-btn" id="btn">
+        <span class="inner">
+          <span class="ico">🔍</span>
+          <span>FETCH VIDEO</span>
+        </span>
+      </button>
+    </div>
 
     <div class="prog-wrap" id="prog">
       <div class="ring-wrap">
@@ -391,8 +399,11 @@ footer b{color:var(--neon1);font-family:'Orbitron',sans-serif;font-size:.75rem;l
         <div><strong>📦 Size</strong><span id="rsize">—</span></div>
       </div>
       <a class="get-btn" id="get" href="#" download>
-        <span>⬇</span> GET FILE
+        <span>⬇</span> DOWNLOAD MP4
       </a>
+      <button class="new-btn" id="newBtn">
+        <span>🔄</span> DOWNLOAD ANOTHER
+      </button>
     </div>
 
     <div class="err-box" id="err">
@@ -419,16 +430,31 @@ footer b{color:var(--neon1);font-family:'Orbitron',sans-serif;font-size:.75rem;l
 'use strict';
 // ---------- helpers ----------
 var $ = function(id){ return document.getElementById(id); };
-var urlIn=$('url'),btn=$('btn'),card=$('card'),progEl=$('prog'),pctEl=$('pct'),
+var urlIn=$('url'),btn=$('btn'),card=$('card'),pctEl=$('pct'),
     stageEl=$('stage'),subEl=$('sub'),resEl=$('res'),errBox=$('err'),errmsg=$('errmsg'),
-    rtitleEl=$('rtitle'),rsizeEl=$('rsize'),getBtn=$('get'),
+    rtitleEl=$('rtitle'),rsizeEl=$('rsize'),getBtn=$('get'),newBtn=$('newBtn'),
     sndBtn=document.getElementById('snd'),rfg=document.getElementById('rfg'),
-    cv=document.getElementById('fx');
-var cx = cv.getContext('2d');
+    cv=document.getElementById('fx'),pasteBtn=$('paste');
+var cx = cv && cv.getContext ? cv.getContext('2d') : null;
 var CIRC = 2*Math.PI*60;
 var curJob = null, polTimer = null;
 var audioCtx = null, soundOn = true;
 var W=0,H=0,parts=[];
+
+// ---------- Strip bot credits / usernames from any text ----------
+function cleanTitle(t){
+  if(!t) return 'Video';
+  t = String(t);
+  // Strip Telegram bot mentions, credit lines, "Downloaded via", "By @..." etc.
+  t = t.replace(/\s*(?:🔗|🤖|📥|⬇️?|👉|via|by|Downloaded(\s+via)?|credit|Powered by|Channel|Join)[^\n]*(@[A-Za-z0-9_]+|https?:\/\/\S+|t\.me\/\S+)?[^\n]*/gi,'');
+  t = t.replace(/@[A-Za-z0-9_]{2,}/g,'');                    // @usernames
+  t = t.replace(/https?:\/\/\S+/g,'');                       // URLs
+  t = t.replace(/t\.me\/\S+/gi,'');                          // t.me links
+  t = t.replace(/\b(Join|Subscribe|Channel)\b[^\n]*/gi,'');  // subscribe prompts
+  t = t.replace(/\s{2,}/g,' ').trim();
+  t = t.replace(/^[-:|\s]+|[-:|\s]+$/g,'').trim();
+  return t || 'Video';
+}
 
 // ---------- SFX ----------
 function initAudio(){
@@ -438,12 +464,14 @@ function initAudio(){
 function beep(freq,dur,type,vol,slide){
   if(!soundOn||!audioCtx)return;
   type=type||'square'; vol=vol||0.06; slide=slide||0;
-  var o=audioCtx.createOscillator(),g=audioCtx.createGain();
-  o.type=type;o.frequency.value=freq;
-  if(slide)o.frequency.exponentialRampToValueAtTime(Math.max(20,freq+slide),audioCtx.currentTime+dur);
-  g.gain.setValueAtTime(vol,audioCtx.currentTime);
-  g.gain.exponentialRampToValueAtTime(0.0001,audioCtx.currentTime+dur);
-  o.connect(g);g.connect(audioCtx.destination);o.start();o.stop(audioCtx.currentTime+dur);
+  try{
+    var o=audioCtx.createOscillator(),g=audioCtx.createGain();
+    o.type=type;o.frequency.value=freq;
+    if(slide)o.frequency.exponentialRampToValueAtTime(Math.max(20,freq+slide),audioCtx.currentTime+dur);
+    g.gain.setValueAtTime(vol,audioCtx.currentTime);
+    g.gain.exponentialRampToValueAtTime(0.0001,audioCtx.currentTime+dur);
+    o.connect(g);g.connect(audioCtx.destination);o.start();o.stop(audioCtx.currentTime+dur);
+  }catch(e){}
 }
 function sfxClick(){beep(880,.05,'square',.06);setTimeout(function(){beep(1320,.06,'square',.05);},40);}
 function sfxGo(){beep(523,.08,'sine',.07);setTimeout(function(){beep(784,.08,'sine',.07);},80);setTimeout(function(){beep(1046,.12,'sine',.07,-400);},160);}
@@ -455,94 +483,80 @@ if(sndBtn){
 }
 
 // ---------- Particles ----------
-function resize(){W=cv.width=window.innerWidth;H=cv.height=window.innerHeight;}
+function resize(){ if(cx){W=cv.width=window.innerWidth;H=cv.height=window.innerHeight;} }
 resize();
 window.addEventListener('resize',resize);
-for(var i=0;i<40;i++){parts.push({
-  x:Math.random()*W,y:Math.random()*H,
-  vx:(Math.random()-.5)*.4,vy:(Math.random()-.5)*.4,
-  s:Math.random()*2+.5,
-  c:Math.random()>.5?'#00f0ff':'#b026ff'
-});}
-function draw(){
-  cx.clearRect(0,0,W,H);
-  for(var i=0;i<parts.length;i++){
-    var p=parts[i];
-    p.x+=p.vx;p.y+=p.vy;
-    if(p.x<0||p.x>W)p.vx*=-1;if(p.y<0||p.y>H)p.vy*=-1;
-    cx.beginPath();cx.arc(p.x,p.y,p.s,0,Math.PI*2);cx.fillStyle=p.c;cx.globalAlpha=.55;cx.fill();
+if(cx){
+  for(var i=0;i<40;i++){parts.push({
+    x:Math.random()*(W||window.innerWidth),y:Math.random()*(H||window.innerHeight),
+    vx:(Math.random()-.5)*.4,vy:(Math.random()-.5)*.4,
+    s:Math.random()*2+.5,
+    c:Math.random()>.5?'#00f0ff':'#b026ff'
+  });}
+  function draw(){
+    cx.clearRect(0,0,W,H);
+    for(var i=0;i<parts.length;i++){
+      var p=parts[i];
+      p.x+=p.vx;p.y+=p.vy;
+      if(p.x<0||p.x>W)p.vx*=-1;if(p.y<0||p.y>H)p.vy*=-1;
+      cx.beginPath();cx.arc(p.x,p.y,p.s,0,Math.PI*2);cx.fillStyle=p.c;cx.globalAlpha=.55;cx.fill();
+    }
+    for(var j=0;j<parts.length;j+=2){
+      var a=parts[j],b=parts[j+1]||parts[0];
+      var d=Math.hypot(a.x-b.x,a.y-b.y);
+      if(d<180){cx.beginPath();cx.moveTo(a.x,a.y);cx.lineTo(b.x,b.y);
+        cx.strokeStyle='rgba(176,38,255,'+(.12*(1-d/180))+')';cx.lineWidth=.6;cx.stroke();}
+    }
+    cx.globalAlpha=1;window.requestAnimationFrame(draw);
   }
-  for(var j=0;j<parts.length;j+=2){
-    var a=parts[j],b=parts[j+1]||parts[0];
-    var d=Math.hypot(a.x-b.x,a.y-b.y);
-    if(d<180){cx.beginPath();cx.moveTo(a.x,a.y);cx.lineTo(b.x,b.y);
-      cx.strokeStyle='rgba(176,38,255,'+(.12*(1-d/180))+')';cx.lineWidth=.6;cx.stroke();}
-  }
-  cx.globalAlpha=1;window.requestAnimationFrame(draw);
+  draw();
 }
-draw();
 
 // ---------- UI helpers ----------
-function setPct(p){
-  rfg.style.strokeDashoffset = CIRC*(1-p/100);
-  pctEl.textContent = String(p);
-}
-function resetUI(){
-  card.classList.remove('scanning','show-prog');
-  resEl.classList.remove('show');errBox.classList.remove('show');
-  btn.disabled=false;btn.classList.remove('loading','ok','err');
-  btn.querySelector('.inner').innerHTML='<span class="ico">⬇</span><span>INITIATE DOWNLOAD</span><span class="arrow-ico">▶</span>';
-  setPct(0);
-}
-// Reset form whenever user edits the URL so they can immediately paste a new one without refreshing
-urlIn.addEventListener('input',function(){
-  if(resEl.classList.contains('show')||errBox.classList.contains('show')||btn.classList.contains('ok')){
-    clearTimeout(polTimer);
-    curJob=null;
-    card.classList.remove('show-prog','scanning');
-    resEl.classList.remove('show');
-    errBox.classList.remove('show');
-    btn.classList.remove('loading','ok','err');
-    btn.disabled=false;
-    btn.querySelector('.inner').innerHTML='<span class="ico">⬇</span><span>INITIATE DOWNLOAD</span><span class="arrow-ico">▶</span>';
-    setPct(0);
-    stageEl.textContent='Initializing…';subEl.textContent='Connecting to server…';
+function setBtnLabel(ico,txt){
+  if(btn&&btn.querySelector('.inner')){
+    btn.querySelector('.inner').innerHTML='<span class="ico">'+ico+'</span><span>'+txt+'</span>';
   }
-});
-function fail(msg){
-  sfxErr();
-  clearTimeout(polTimer);
-  btn.disabled=false;btn.classList.remove('loading');btn.classList.add('err');
-  btn.querySelector('.inner').innerHTML='<span class="ico">✕</span><span>FAILED</span>';
-  card.classList.remove('scanning');
-  errBox.classList.add('show');errmsg.textContent=msg||'Kuch error aaya bhai';
-  setTimeout(function(){
-    btn.classList.remove('err');
-    btn.querySelector('.inner').innerHTML='<span class="ico">⬇</span><span>INITIATE DOWNLOAD</span><span class="arrow-ico">▶</span>';
-  },2800);
 }
-function done(file,title,fsize){
+function setPct(p){
+  if(rfg) rfg.style.strokeDashoffset = CIRC*(1-p/100);
+  if(pctEl) pctEl.textContent = String(p);
+}
+// FULL reset — used when starting a new fetch OR when user clicks "Download Another"
+function fullReset(){
+  clearTimeout(polTimer); polTimer=null; curJob=null;
+  if(card){card.classList.remove('scanning','show-prog');}
+  if(resEl)resEl.classList.remove('show');
+  if(errBox)errBox.classList.remove('show');
+  if(btn){btn.disabled=false;btn.classList.remove('loading','err');}
+  setBtnLabel('🔍','FETCH VIDEO');
+  setPct(0);
+  if(stageEl)stageEl.textContent='Ready';
+  if(subEl)subEl.textContent='Naya URL paste karo…';
+}
+function showError(msg){
+  sfxErr();
+  clearTimeout(polTimer); polTimer=null;
+  if(btn){btn.disabled=false;btn.classList.remove('loading');btn.classList.add('err');}
+  setBtnLabel('✕','TRY AGAIN');
+  if(card)card.classList.remove('scanning');
+  if(errBox){errBox.classList.add('show');errmsg.textContent=msg||'Kuch error aaya bhai';}
+  if(stageEl)stageEl.textContent='ERROR';
+}
+function showDone(file,title,fsize){
   sfxOk();
-  clearTimeout(polTimer);
-  card.classList.remove('scanning');
-  btn.disabled=false;btn.classList.remove('loading');btn.classList.add('ok');
-  btn.querySelector('.inner').innerHTML='<span class="ico">✓</span><span>DOWNLOAD COMPLETE</span>';
+  clearTimeout(polTimer); polTimer=null;
+  if(card)card.classList.remove('scanning');
+  if(btn){btn.disabled=false;btn.classList.remove('loading');}
   setPct(100);
-  stageEl.textContent='FILE ACQUIRED';subEl.textContent='Tumhara file ready hai 🔥';
-  rtitleEl.textContent=title||'Video';
-  rsizeEl.textContent=fsize||'—';
-  getBtn.href='/files/'+encodeURIComponent(file);
-  setTimeout(function(){resEl.classList.add('show');},400);
-  // Auto-reset the form after 4s so user can paste the NEXT link without refresh
-  setTimeout(function(){
-    card.classList.remove('show-prog');
-    resEl.classList.remove('show');
-    btn.classList.remove('ok');
-    btn.querySelector('.inner').innerHTML='<span class="ico">⬇</span><span>INITIATE DOWNLOAD</span><span class="arrow-ico">▶</span>';
-    setPct(0);
-    urlIn.value=''; urlIn.focus();
-    stageEl.textContent='Ready';subEl.textContent='Naya URL paste karo…';
-  },4000);
+  if(stageEl)stageEl.textContent='READY';
+  if(subEl)subEl.textContent='Niche DOWNLOAD MP4 button dabao 🔥';
+  if(rtitleEl)rtitleEl.textContent=cleanTitle(title);
+  if(rsizeEl)rsizeEl.textContent=fsize||'—';
+  if(getBtn)getBtn.href='/files/'+encodeURIComponent(file);
+  // Hide the fetch button's progress area? No — keep ring at 100 but show result below
+  setTimeout(function(){ if(resEl)resEl.classList.add('show'); },400);
+  // DO NOT auto-refresh / auto-reset. User must click "Download Another" OR edit URL.
 }
 
 // ---------- Polling ----------
@@ -550,56 +564,118 @@ function pollStatus(){
   fetch('/api/status/'+curJob)
     .then(function(r){return r.json();})
     .then(function(j){
-      if(!j||!j.ok){fail(j&&j.error?j.error:'Invalid response');return;}
+      if(!j||!j.ok){showError(j&&j.error?j.error:'Invalid response');return;}
       var job=j.job;
       var st=job.status;
       var p=0;
-      if(st==='queued'||st==='contacting_bot'){p=8;stageEl.textContent='SENDING LINK';subEl.textContent='Bot ko URL bheja ja raha hai…';}
-      else if(st==='selecting_quality'){p=22;stageEl.textContent='ANALYZING';subEl.textContent='Bot se response aa raha hai…';}
+      if(st==='queued'||st==='contacting_bot'){
+        p=8;
+        stageEl.textContent='SENDING LINK';
+        subEl.textContent='Server ko URL bheja ja raha hai…';
+      }
+      else if(st==='selecting_quality'){
+        p=22;
+        stageEl.textContent='ANALYZING';
+        subEl.textContent='Video fetch ho rahi hai…';
+      }
       else if(st==='downloading_from_bot'||st==='downloading'){
         var w=Math.min(job.wait_sec||0,120);
         p=25+Math.floor((w/120)*60);
         stageEl.textContent='DOWNLOADING';
-        subEl.textContent='File download ho rahi hai…';
+        subEl.textContent='File server par receive ho rahi hai…';
       }
-      else if(st==='error'){fail(job.error||'Unknown error');return;}
-      else if(st==='done'){p=100;done(job.filename,job.title,job.filesize_human);return;}
+      else if(st==='error'){
+        showError(job.error||'Unknown error');
+        return;
+      }
+      else if(st==='done'){
+        p=100;
+        showDone(job.filename,job.title,job.filesize_human);
+        return;
+      }
       setPct(p);
-      polTimer=setTimeout(pollStatus,1200);
+      polTimer=setTimeout(pollStatus,1500);
     })
-    .catch(function(e){fail('Network error: '+(e&&e.message?e.message:String(e)));});
+    .catch(function(e){showError('Network error: '+(e&&e.message?e.message:String(e)));});
 }
 
 // ---------- Bindings ----------
-var pasteBtn=$('paste');
 if(pasteBtn){
   pasteBtn.onclick=function(){
     sfxClick();initAudio();
     if(navigator.clipboard&&navigator.clipboard.readText){
-      navigator.clipboard.readText().then(function(t){if(t){urlIn.value=t;urlIn.focus();sfxPop();}}).catch(function(){urlIn.focus();});
-    }else{urlIn.focus();}
+      navigator.clipboard.readText().then(function(t){
+        if(t){urlIn.value=t;urlIn.focus();sfxPop();}
+      }).catch(function(){urlIn&&urlIn.focus();});
+    }else if(urlIn){urlIn.focus();}
   };
 }
-urlIn.addEventListener('keydown',function(e){if(e.key==='Enter')btn.click();});
+if(urlIn){
+  urlIn.addEventListener('keydown',function(e){if(e.key==='Enter'&&btn){btn.click();}});
+  // When user starts typing a new URL, reset UI fully (no auto-refresh, just clear previous state)
+  urlIn.addEventListener('input',function(){
+    if(resEl&&resEl.classList.contains('show')){
+      // Result was showing — reset so new fetch can start
+      clearTimeout(polTimer);polTimer=null;curJob=null;
+      resEl.classList.remove('show');
+      if(card)card.classList.remove('show-prog','scanning');
+      if(btn){btn.disabled=false;btn.classList.remove('loading','err');}
+      setBtnLabel('🔍','FETCH VIDEO');
+      setPct(0);
+    }else if(errBox&&errBox.classList.contains('show')){
+      errBox.classList.remove('show');
+      if(btn){btn.classList.remove('err');}
+      setBtnLabel('🔍','FETCH VIDEO');
+    }
+  });
+}
 
-btn.onclick=function(){
-  initAudio();sfxGo();
-  var url=urlIn.value.trim();
-  if(!url){sfxErr();errBox.classList.add('show');errmsg.textContent='Pehle video URL paste karo bhai 🔗';return;}
-  if(!/^https?:\/\/\S+\.\S+/i.test(url)){sfxErr();errBox.classList.add('show');errmsg.textContent='Valid URL daalo — https:// se start hona chahiye';return;}
-  resetUI();btn.disabled=true;btn.classList.add('loading');card.classList.add('scanning','show-prog');
-  btn.querySelector('.inner').innerHTML='<span class="ico">⟳</span><span>PROCESSING…</span>';
-  stageEl.textContent='Connecting…';subEl.textContent='Server se link establish ho raha hai…';
-  fetch('/api/download',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({url:url})})
-    .then(function(r){return r.json();})
-    .then(function(j){
-      if(!j||!j.ok){throw new Error((j&&j.error)?j.error:'Submit fail');}
-      curJob=j.job_id;pollStatus();
-    })
-    .catch(function(e){fail(e&&e.message?e.message:String(e));});
-};
+// FETCH button
+if(btn){
+  btn.onclick=function(){
+    initAudio();sfxGo();
+    var url = urlIn ? urlIn.value.trim() : '';
+    if(!url){
+      sfxErr();
+      if(errBox){errBox.classList.add('show');errmsg.textContent='Pehle video URL paste karo bhai 🔗';}
+      return;
+    }
+    if(!/^https?:\/\/\S+\.\S+/i.test(url)){
+      sfxErr();
+      if(errBox){errBox.classList.add('show');errmsg.textContent='Valid URL daalo — https:// se start hona chahiye';}
+      return;
+    }
+    // Clear previous state
+    if(resEl)resEl.classList.remove('show');
+    if(errBox)errBox.classList.remove('show');
+    clearTimeout(polTimer); polTimer=null; curJob=null;
 
-urlIn.focus();
+    btn.disabled=true;btn.classList.remove('err');btn.classList.add('loading');
+    if(card)card.classList.add('scanning','show-prog');
+    setBtnLabel('⟳','FETCHING…');
+    stageEl.textContent='Connecting…';subEl.textContent='Server se link establish ho raha hai…';
+    setPct(0);
+
+    fetch('/api/download',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({url:url})})
+      .then(function(r){return r.json();})
+      .then(function(j){
+        if(!j||!j.ok){throw new Error((j&&j.error)?j.error:'Submit fail');}
+        curJob=j.job_id;pollStatus();
+      })
+      .catch(function(e){showError(e&&e.message?e.message:String(e));});
+  };
+}
+
+// DOWNLOAD ANOTHER button — clears everything, focuses URL input
+if(newBtn){
+  newBtn.onclick=function(){
+    sfxClick();
+    fullReset();
+    if(urlIn){urlIn.value='';urlIn.focus();}
+  };
+}
+
+if(urlIn)urlIn.focus();
 })();
 </script>
 </body>
