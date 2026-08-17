@@ -21,8 +21,9 @@ RUN mkdir -p downloads
 ENV PORT=10000 \
     PYTHONUNBUFFERED=1 \
     PIP_NO_CACHE_DIR=1 \
-    BOT_USERNAME=YTfinderbot,allsaverbot
+    BOT_USERNAME=allsaverbot,YTfinderbot,FacebookDl_RoBot,ironwood_downbot \
+    TG_CONCURRENCY=3
 
 EXPOSE 10000
 
-CMD gunicorn app:app --bind 0.0.0.0:$PORT --workers 1 --threads 8 --timeout 300
+CMD gunicorn app:app --bind 0.0.0.0:$PORT --workers 1 --threads 16 --timeout 600
