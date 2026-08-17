@@ -462,7 +462,6 @@ async def _bot_download_one(bot_name, url, job_id):
 
 async def _process_job(job_id, url):
     """Run a job against all bots until one succeeds."""
-    disp = BOT_DISPLAY["default"]
     errors = []
     bot_order = _get_bot_order(url)
     print(f"[job {job_id}] start platform={detect_platform(url)} order={bot_order}", flush=True)
