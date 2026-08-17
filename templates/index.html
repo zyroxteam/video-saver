@@ -1,347 +1,802 @@
 <!DOCTYPE html>
-<html lang="hi">
+<html lang="en">
 <head>
 <meta charset="UTF-8" />
-<meta name="viewport" content="width=device-width, initial-scale=1.0" />
-<title>VideoSaver — YouTube, Instagram, Facebook Video Downloader</title>
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover" />
+<title>ZYROX DOWNLOADER — 4D Video Saver</title>
+<link rel="icon" href="/static/logo_nav.png" />
 <style>
-  * { box-sizing: border-box; margin: 0; padding: 0; }
-  body {
-    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
-    background: linear-gradient(135deg, #0f0c29 0%, #302b63 50%, #24243e 100%);
-    min-height: 100vh;
-    color: #fff;
-    padding: 20px;
+  /* ============ RESET / BASE ============ */
+  *,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
+  :root{
+    --bg-0:#05020f;
+    --bg-1:#0a0420;
+    --cyan:#00f0ff;
+    --magenta:#ff2bd6;
+    --purple:#7a3bff;
+    --gold:#ffd166;
+    --white:#f2f6ff;
+    --muted:#9aa3c7;
+    --glass:rgba(255,255,255,.06);
+    --glass-strong:rgba(255,255,255,.1);
+    --border:rgba(255,255,255,.12);
+    --shadow-cyan:0 0 30px rgba(0,240,255,.45), 0 0 60px rgba(0,240,255,.2);
+    --shadow-mag:0 0 30px rgba(255,43,214,.45), 0 0 60px rgba(255,43,214,.2);
   }
-  .container { max-width: 760px; margin: 0 auto; }
-  .header {
-    text-align: center;
-    padding: 40px 0 30px;
+  html,body{height:100%;}
+  body{
+    font-family:"Space Grotesk","Inter",system-ui,-apple-system,Segoe UI,Roboto,sans-serif;
+    background:radial-gradient(ellipse at 20% 0%, #1a0a4a 0%, var(--bg-1) 40%, var(--bg-0) 100%);
+    color:var(--white);
+    overflow-x:hidden;
+    min-height:100vh;
+    position:relative;
+    -webkit-font-smoothing:antialiased;
   }
-  .logo {
-    font-size: 42px;
-    font-weight: 800;
-    background: linear-gradient(90deg, #ff6b6b, #feca57, #48dbfb, #ff9ff3);
-    -webkit-background-clip: text;
-    -webkit-text-fill-color: transparent;
-    margin-bottom: 10px;
+  /* Animated gradient background */
+  body::before{
+    content:"";position:fixed;inset:-20%;z-index:-2;
+    background:
+      radial-gradient(circle at 15% 20%, rgba(122,59,255,.35) 0%, transparent 40%),
+      radial-gradient(circle at 85% 80%, rgba(255,43,214,.28) 0%, transparent 45%),
+      radial-gradient(circle at 50% 50%, rgba(0,240,255,.18) 0%, transparent 50%);
+    animation:bgShift 18s ease-in-out infinite alternate;
+    filter:blur(40px);
   }
-  .subtitle { color: #bbb; font-size: 16px; }
+  @keyframes bgShift{
+    0%{transform:translate(0,0) scale(1) rotate(0deg)}
+    50%{transform:translate(-3%,2%) scale(1.08) rotate(2deg)}
+    100%{transform:translate(3%,-2%) scale(1.05) rotate(-2deg)}
+  }
+  /* Grid overlay */
+  body::after{
+    content:"";position:fixed;inset:0;z-index:-1;pointer-events:none;
+    background-image:
+      linear-gradient(rgba(0,240,255,.05) 1px,transparent 1px),
+      linear-gradient(90deg,rgba(255,43,214,.04) 1px,transparent 1px);
+    background-size:60px 60px;
+    mask-image:radial-gradient(ellipse at center,black 20%,transparent 80%);
+  }
+  canvas#particles{position:fixed;inset:0;z-index:-1;pointer-events:none;}
 
-  .badges {
-    display: flex; flex-wrap: wrap; justify-content: center;
-    gap: 8px; margin-top: 16px;
+  /* ============ NAV ============ */
+  nav{
+    position:sticky;top:0;z-index:100;
+    display:flex;align-items:center;justify-content:space-between;
+    padding:18px 6vw;
+    backdrop-filter:blur(18px) saturate(140%);
+    -webkit-backdrop-filter:blur(18px) saturate(140%);
+    background:linear-gradient(180deg,rgba(5,2,15,.75),rgba(5,2,15,.35));
+    border-bottom:1px solid var(--border);
   }
-  .badge {
-    background: rgba(255,255,255,0.1); padding: 6px 12px;
-    border-radius: 20px; font-size: 13px;
-    border: 1px solid rgba(255,255,255,0.15);
+  .brand{display:flex;align-items:center;gap:14px;text-decoration:none;color:#fff}
+  .brand img{
+    width:54px;height:54px;border-radius:14px;
+    filter:drop-shadow(0 0 12px rgba(0,240,255,.5));
+    animation:logoPulse 3s ease-in-out infinite;
+  }
+  @keyframes logoPulse{
+    0%,100%{filter:drop-shadow(0 0 12px rgba(0,240,255,.5)) drop-shadow(0 0 24px rgba(255,43,214,.2))}
+    50%{filter:drop-shadow(0 0 20px rgba(0,240,255,.8)) drop-shadow(0 0 40px rgba(255,43,214,.5))}
+  }
+  .brand-text{display:flex;flex-direction:column;line-height:1}
+  .brand-name{
+    font-weight:900;font-size:1.45rem;letter-spacing:.12em;
+    background:linear-gradient(90deg,var(--cyan),#fff 40%,var(--magenta));
+    -webkit-background-clip:text;background-clip:text;color:transparent;
+    text-shadow:0 0 30px rgba(0,240,255,.3);
+  }
+  .brand-sub{font-size:.7rem;letter-spacing:.35em;color:var(--muted);text-transform:uppercase;margin-top:4px}
+  .nav-links{display:flex;gap:22px;align-items:center}
+  .nav-links a{
+    color:var(--muted);text-decoration:none;font-size:.9rem;letter-spacing:.08em;
+    transition:.3s;position:relative;padding:6px 2px;
+  }
+  .nav-links a:hover{color:var(--cyan);text-shadow:0 0 10px var(--cyan)}
+  .sound-toggle{
+    width:40px;height:40px;border-radius:50%;
+    background:var(--glass);border:1px solid var(--border);
+    color:var(--white);cursor:pointer;display:grid;place-items:center;
+    transition:.3s;font-size:1.1rem;
+  }
+  .sound-toggle:hover{background:var(--glass-strong);box-shadow:var(--shadow-cyan)}
+  .sound-toggle.muted{opacity:.5}
+
+  /* ============ HERO ============ */
+  .hero{
+    text-align:center;padding:50px 6vw 20px;position:relative;
+  }
+  .hero-badge{
+    display:inline-flex;align-items:center;gap:8px;
+    padding:6px 16px;border-radius:999px;
+    background:var(--glass);border:1px solid var(--border);
+    font-size:.75rem;letter-spacing:.2em;text-transform:uppercase;color:var(--cyan);
+    margin-bottom:28px;
+    animation:float 4s ease-in-out infinite;
+  }
+  .hero-badge .dot{
+    width:6px;height:6px;border-radius:50%;background:var(--cyan);
+    box-shadow:0 0 10px var(--cyan);animation:blink 1.4s infinite;
+  }
+  @keyframes blink{50%{opacity:.3}}
+  @keyframes float{
+    0%,100%{transform:translateY(0)}
+    50%{transform:translateY(-6px)}
+  }
+  h1.title{
+    font-size:clamp(2.4rem,7vw,5.4rem);font-weight:900;
+    letter-spacing:-.02em;line-height:1.02;
+    background:linear-gradient(135deg,#fff 0%,var(--cyan) 35%,var(--magenta) 70%,#fff 100%);
+    background-size:200% 200%;
+    -webkit-background-clip:text;background-clip:text;color:transparent;
+    animation:gradientMove 6s ease-in-out infinite;
+    margin-bottom:20px;
+    text-shadow:0 0 80px rgba(0,240,255,.2);
+  }
+  @keyframes gradientMove{
+    0%,100%{background-position:0% 50%}
+    50%{background-position:100% 50%}
+  }
+  h1.title .down{
+    display:inline-block;
+    color:var(--cyan);-webkit-text-fill-color:var(--cyan);
+    animation:bounceDown 1.6s ease-in-out infinite;
+    filter:drop-shadow(0 0 20px var(--cyan));
+  }
+  @keyframes bounceDown{
+    0%,100%{transform:translateY(0) rotate(0)}
+    50%{transform:translateY(8px) rotate(-6deg)}
+  }
+  .subtitle{
+    font-size:clamp(1rem,1.6vw,1.2rem);color:var(--muted);
+    max-width:620px;margin:0 auto 40px;line-height:1.5;
+  }
+  .platforms{
+    display:flex;flex-wrap:wrap;gap:10px;justify-content:center;margin-bottom:36px;
+  }
+  .platform-chip{
+    padding:7px 14px;border-radius:999px;font-size:.8rem;
+    background:var(--glass);border:1px solid var(--border);
+    color:var(--muted);transition:.3s;letter-spacing:.05em;
+  }
+  .platform-chip:hover{
+    color:#fff;border-color:var(--cyan);
+    box-shadow:0 0 20px rgba(0,240,255,.3);transform:translateY(-2px);
   }
 
-  .card {
-    background: rgba(255,255,255,0.08);
-    backdrop-filter: blur(16px);
-    border-radius: 18px;
-    padding: 28px;
-    border: 1px solid rgba(255,255,255,0.12);
-    box-shadow: 0 12px 40px rgba(0,0,0,0.4);
+  /* ============ 4D CURVED DOWNLOADER ============ */
+  .downloader{
+    max-width:720px;margin:0 auto;padding:20px;position:relative;
+  }
+  .downloader-card{
+    position:relative;padding:40px 36px;border-radius:32px;
+    background:linear-gradient(135deg,rgba(255,255,255,.08),rgba(255,255,255,.02));
+    border:1px solid var(--border);
+    backdrop-filter:blur(30px) saturate(160%);
+    -webkit-backdrop-filter:blur(30px) saturate(160%);
+    box-shadow:
+      0 30px 80px rgba(0,0,0,.5),
+      inset 0 1px 0 rgba(255,255,255,.1),
+      0 0 80px rgba(122,59,255,.15);
+    overflow:hidden;
+  }
+  /* Animated border glow */
+  .downloader-card::before{
+    content:"";position:absolute;inset:-2px;border-radius:34px;z-index:-1;
+    background:conic-gradient(from var(--angle,0deg),
+      transparent 0deg,var(--cyan) 60deg,transparent 120deg,
+      transparent 180deg,var(--magenta) 240deg,transparent 300deg,transparent 360deg);
+    animation:rotateBorder 6s linear infinite;
+    opacity:.6;
+  }
+  @property --angle{syntax:"<angle>";initial-value:0deg;inherits:false}
+  @keyframes rotateBorder{to{--angle:360deg}}
+  .downloader-card::after{
+    content:"";position:absolute;inset:0;border-radius:32px;
+    background:radial-gradient(circle at 20% 0%,rgba(0,240,255,.08),transparent 50%),
+               radial-gradient(circle at 80% 100%,rgba(255,43,214,.08),transparent 50%);
+    pointer-events:none;
   }
 
-  .input-row {
-    display: flex; gap: 10px; margin-top: 14px;
-    flex-wrap: wrap;
+  /* URL input */
+  .url-wrap{position:relative;margin-bottom:32px}
+  .url-input{
+    width:100%;padding:22px 64px 22px 60px;border-radius:18px;
+    background:rgba(0,0,0,.35);
+    border:2px solid var(--border);
+    color:var(--white);font-size:1.05rem;font-family:inherit;
+    outline:none;transition:.4s;letter-spacing:.01em;
   }
-  input[type="text"] {
-    flex: 1; min-width: 240px;
-    padding: 16px 20px;
-    border-radius: 12px;
-    border: 2px solid transparent;
-    background: rgba(0,0,0,0.3);
-    color: #fff;
-    font-size: 16px;
-    outline: none;
-    transition: 0.2s;
+  .url-input::placeholder{color:var(--muted)}
+  .url-input:focus{
+    border-color:var(--cyan);
+    box-shadow:0 0 0 4px rgba(0,240,255,.1),var(--shadow-cyan);
+    background:rgba(0,0,0,.5);
   }
-  input[type="text"]:focus { border-color: #48dbfb; }
-  input[type="text"]::placeholder { color: #888; }
+  .url-icon{
+    position:absolute;left:22px;top:50%;transform:translateY(-50%);
+    color:var(--cyan);font-size:1.3rem;
+    filter:drop-shadow(0 0 8px var(--cyan));
+    pointer-events:none;
+  }
+  .paste-btn{
+    position:absolute;right:14px;top:50%;transform:translateY(-50%);
+    padding:8px 14px;border-radius:10px;border:none;cursor:pointer;
+    background:var(--glass-strong);color:var(--cyan);font-size:.8rem;
+    font-family:inherit;font-weight:600;letter-spacing:.06em;
+    transition:.3s;
+  }
+  .paste-btn:hover{background:var(--cyan);color:#000;box-shadow:var(--shadow-cyan)}
 
-  button {
-    padding: 16px 28px;
-    border-radius: 12px;
-    border: none;
-    background: linear-gradient(90deg, #ff6b6b, #ee5a6f);
-    color: #fff;
-    font-size: 16px;
-    font-weight: 600;
-    cursor: pointer;
-    transition: transform 0.15s, box-shadow 0.15s;
-    min-width: 130px;
+  /* ============ 4D CURVED PROGRESS RING ============ */
+  .progress-stage{
+    position:relative;display:flex;flex-direction:column;align-items:center;gap:24px;
+    margin-top:10px;min-height:260px;
   }
-  button:hover { transform: translateY(-2px); box-shadow: 0 8px 20px rgba(238,90,111,0.4); }
-  button:disabled { opacity: 0.6; cursor: not-allowed; transform: none; }
+  .ring-wrap{
+    position:relative;width:220px;height:220px;
+    perspective:1000px;
+    transform-style:preserve-3d;
+  }
+  .ring-wrap.tilting{animation:wobble 2s ease-in-out infinite}
+  @keyframes wobble{
+    0%,100%{transform:rotateX(10deg) rotateY(-10deg)}
+    50%{transform:rotateX(-6deg) rotateY(10deg)}
+  }
+  .ring-wrap svg{width:100%;height:100%;overflow:visible;transform:rotate(-90deg)}
+  .ring-bg{fill:none;stroke:rgba(255,255,255,.08);stroke-width:10}
+  .ring-track{fill:none;stroke:rgba(122,59,255,.2);stroke-width:10;stroke-linecap:round}
+  .ring-progress{
+    fill:none;stroke:url(#grad);stroke-width:10;stroke-linecap:round;
+    filter:drop-shadow(0 0 10px var(--cyan)) drop-shadow(0 0 20px var(--magenta));
+    stroke-dasharray:628;stroke-dashoffset:628;
+    transition:stroke-dashoffset .3s ease;
+  }
+  .ring-glow{
+    fill:none;stroke:url(#grad);stroke-width:18;stroke-linecap:round;
+    opacity:.3;filter:blur(8px);
+    stroke-dasharray:628;stroke-dashoffset:628;
+    transition:stroke-dashoffset .3s ease;
+  }
+  /* Orbiting particles along ring */
+  .orbit-dot{
+    position:absolute;top:50%;left:50%;width:12px;height:12px;
+    border-radius:50%;margin:-6px 0 0 -6px;
+    background:var(--cyan);box-shadow:0 0 20px var(--cyan),0 0 40px var(--cyan);
+    transform-origin:0 0;
+    animation:orbit 3s linear infinite;
+    opacity:0;
+  }
+  .orbit-dot.d2{background:var(--magenta);box-shadow:0 0 20px var(--magenta),0 0 40px var(--magenta);animation-duration:2.4s;animation-direction:reverse}
+  .orbit-dot.d3{background:var(--gold);box-shadow:0 0 20px var(--gold);animation-duration:4s}
+  .downloading .orbit-dot{opacity:1}
+  @keyframes orbit{
+    from{transform:rotate(0deg) translateX(110px) rotate(0deg)}
+    to{transform:rotate(360deg) translateX(110px) rotate(-360deg)}
+  }
 
-  .spinner {
-    display: inline-block; width: 18px; height: 18px;
-    border: 3px solid rgba(255,255,255,0.3);
-    border-top-color: #fff; border-radius: 50%;
-    animation: spin 0.8s linear infinite; vertical-align: middle;
-    margin-right: 8px;
+  .ring-content{
+    position:absolute;inset:0;display:flex;flex-direction:column;
+    align-items:center;justify-content:center;text-align:center;
   }
-  @keyframes spin { to { transform: rotate(360deg); } }
+  .ring-icon{font-size:2.6rem;margin-bottom:6px;animation:breathe 2s ease-in-out infinite}
+  @keyframes breathe{
+    0%,100%{transform:scale(1);filter:drop-shadow(0 0 10px var(--cyan))}
+    50%{transform:scale(1.15);filter:drop-shadow(0 0 25px var(--cyan)) drop-shadow(0 0 50px var(--magenta))}
+  }
+  .ring-pct{
+    font-size:2.4rem;font-weight:900;letter-spacing:-.02em;
+    background:linear-gradient(90deg,var(--cyan),var(--magenta));
+    -webkit-background-clip:text;background-clip:text;color:transparent;
+    line-height:1;
+  }
+  .ring-status{
+    font-size:.75rem;letter-spacing:.18em;text-transform:uppercase;
+    color:var(--muted);margin-top:6px;
+  }
+  .ring-size{font-size:.85rem;color:var(--cyan);margin-top:4px}
 
-  .result { margin-top: 24px; display: none; }
-  .result.show { display: block; animation: fadeIn 0.4s; }
-  @keyframes fadeIn { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: none; } }
+  /* DOWNLOAD button */
+  .btn-download{
+    position:relative;padding:18px 56px;border:none;border-radius:18px;
+    font-family:inherit;font-size:1.1rem;font-weight:800;letter-spacing:.12em;
+    text-transform:uppercase;cursor:pointer;overflow:hidden;
+    background:linear-gradient(135deg,var(--cyan) 0%,var(--purple) 50%,var(--magenta) 100%);
+    background-size:200% 200%;
+    color:#fff;
+    box-shadow:0 10px 40px rgba(0,240,255,.4),0 10px 40px rgba(255,43,214,.3);
+    transition:transform .2s,box-shadow .3s,background-position .6s;
+    animation:btnShine 3s ease-in-out infinite;
+  }
+  .btn-download::before{
+    content:"";position:absolute;top:0;left:-100%;width:100%;height:100%;
+    background:linear-gradient(90deg,transparent,rgba(255,255,255,.35),transparent);
+    transition:.6s;
+  }
+  .btn-download:hover{
+    transform:translateY(-3px) scale(1.03);
+    box-shadow:0 15px 60px rgba(0,240,255,.6),0 15px 60px rgba(255,43,214,.5);
+  }
+  .btn-download:hover::before{left:100%}
+  .btn-download:active{transform:translateY(0) scale(.98)}
+  .btn-download:disabled{opacity:.7;cursor:not-allowed;transform:none}
+  @keyframes btnShine{
+    0%,100%{background-position:0% 50%}
+    50%{background-position:100% 50%}
+  }
+  .btn-download .btn-icon{display:inline-block;margin-right:10px;animation:bounceDown 1.6s ease-in-out infinite}
 
-  .media {
-    display: flex; gap: 16px; padding: 16px;
-    background: rgba(0,0,0,0.25); border-radius: 14px;
-    margin-bottom: 16px;
+  /* Status / result */
+  .status-text{
+    font-size:.9rem;color:var(--muted);min-height:22px;text-align:center;
+    letter-spacing:.04em;
   }
-  .thumb {
-    width: 160px; min-width: 160px;
-    aspect-ratio: 16/9; object-fit: cover;
-    border-radius: 10px; background: #000;
-  }
-  .meta { flex: 1; min-width: 0; }
-  .title { font-size: 17px; font-weight: 600; margin-bottom: 6px; line-height: 1.3;
-           display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
-  .platform-tag {
-    display: inline-block; padding: 3px 10px; border-radius: 8px;
-    font-size: 12px; background: rgba(72, 219, 251, 0.2); color: #48dbfb;
-    margin-bottom: 6px;
-  }
-  .uploader { color: #aaa; font-size: 13px; }
+  .status-text.error{color:#ff6b9d}
+  .status-text.success{color:#6bffb5}
 
-  .quality-list {
-    display: grid; gap: 10px;
-    grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
+  .result-card{
+    margin-top:28px;padding:22px;border-radius:20px;
+    background:linear-gradient(135deg,rgba(0,240,255,.1),rgba(255,43,214,.08));
+    border:1px solid rgba(0,240,255,.3);
+    display:none;
+    animation:popIn .5s cubic-bezier(.34,1.56,.64,1);
   }
-  .q-btn {
-    background: rgba(255,255,255,0.08);
-    border: 1px solid rgba(255,255,255,0.15);
-    padding: 12px 16px; border-radius: 12px;
-    color: #fff; cursor: pointer;
-    text-align: left; transition: 0.15s;
-    font-size: 14px;
+  .result-card.show{display:block}
+  @keyframes popIn{
+    from{opacity:0;transform:translateY(20px) scale(.95)}
+    to{opacity:1;transform:translateY(0) scale(1)}
   }
-  .q-btn:hover { background: rgba(72,219,251,0.2); border-color: #48dbfb; }
-  .q-btn .q-res { font-weight: 600; font-size: 15px; }
-  .q-btn .q-sub { color: #aaa; font-size: 12px; margin-top: 3px; }
+  .result-title{font-weight:700;font-size:1rem;margin-bottom:6px;word-break:break-word}
+  .result-meta{display:flex;gap:18px;flex-wrap:wrap;color:var(--muted);font-size:.85rem;margin-bottom:14px}
+  .result-meta span{display:flex;align-items:center;gap:6px}
+  .btn-get{
+    display:inline-flex;align-items:center;gap:10px;
+    padding:12px 26px;border-radius:12px;text-decoration:none;color:#000;
+    background:linear-gradient(135deg,var(--cyan),var(--gold));
+    font-weight:700;font-size:.95rem;letter-spacing:.06em;
+    transition:.3s;border:none;cursor:pointer;
+    box-shadow:0 8px 30px rgba(0,240,255,.4);
+  }
+  .btn-get:hover{transform:translateY(-2px);box-shadow:0 12px 40px rgba(0,240,255,.6)}
 
-  .error {
-    background: rgba(255, 71, 87, 0.15);
-    border: 1px solid rgba(255, 71, 87, 0.4);
-    padding: 14px; border-radius: 12px; color: #ff8787;
-    margin-top: 16px;
+  /* ============ FEATURES ============ */
+  .features{
+    max-width:1100px;margin:80px auto 60px;padding:0 6vw;
+    display:grid;grid-template-columns:repeat(auto-fit,minmax(230px,1fr));gap:20px;
   }
-  .success-box {
-    background: rgba(46,213,115,0.12);
-    border: 1px solid rgba(46,213,115,0.4);
-    padding: 18px; border-radius: 12px;
-    text-align: center;
+  .feature{
+    padding:28px 24px;border-radius:22px;
+    background:var(--glass);border:1px solid var(--border);
+    backdrop-filter:blur(20px);-webkit-backdrop-filter:blur(20px);
+    transition:.4s;position:relative;overflow:hidden;
   }
-  .success-box a {
-    display: inline-block; margin-top: 10px;
-    padding: 12px 22px; border-radius: 10px;
-    background: linear-gradient(90deg, #2ed573, #1dd1a1);
-    color: #fff; text-decoration: none; font-weight: 600;
+  .feature:hover{
+    transform:translateY(-6px);
+    border-color:var(--cyan);box-shadow:var(--shadow-cyan);
   }
-  .footer {
-    text-align: center; margin-top: 40px;
-    color: #777; font-size: 13px;
+  .feature-icon{
+    width:52px;height:52px;border-radius:14px;
+    display:grid;place-items:center;font-size:1.6rem;margin-bottom:16px;
+    background:linear-gradient(135deg,rgba(0,240,255,.2),rgba(255,43,214,.2));
+    border:1px solid var(--border);
   }
-  @media (max-width: 560px) {
-    .media { flex-direction: column; }
-    .thumb { width: 100%; min-width: auto; }
-    .logo { font-size: 32px; }
+  .feature h3{font-size:1.1rem;font-weight:700;margin-bottom:8px;letter-spacing:.01em}
+  .feature p{color:var(--muted);font-size:.88rem;line-height:1.55}
+
+  /* ============ FOOTER ============ */
+  footer{
+    text-align:center;padding:40px 6vw 30px;color:var(--muted);font-size:.82rem;
+    border-top:1px solid var(--border);margin-top:60px;letter-spacing:.08em;
   }
+  footer span{color:var(--cyan)}
+
+  /* ============ RESPONSIVE ============ */
+  @media(max-width:640px){
+    nav{padding:14px 5vw}
+    .brand img{width:42px;height:42px}
+    .brand-name{font-size:1.15rem}
+    .nav-links{gap:12px}
+    .nav-links a{display:none}
+    .hero{padding:30px 5vw 10px}
+    .downloader-card{padding:28px 20px;border-radius:24px}
+    .url-input{padding:18px 58px 18px 50px;font-size:.95rem}
+    .ring-wrap{width:180px;height:180px}
+    .ring-pct{font-size:2rem}
+    .ring-bg,.ring-track,.ring-progress,.ring-glow{stroke-width:8}
+    .orbit-dot{animation-duration:3s}
+    .btn-download{padding:16px 40px;font-size:1rem}
+  }
+
+  /* Ripple */
+  .ripple{position:absolute;border-radius:50%;background:rgba(255,255,255,.4);transform:scale(0);animation:ripple .7s ease-out;pointer-events:none}
+  @keyframes ripple{to{transform:scale(4);opacity:0}}
 </style>
 </head>
 <body>
-<div class="container">
-  <div class="header">
-    <div class="logo">🎬 VideoSaver</div>
-    <div class="subtitle">YouTube • Instagram • Facebook • TikTok • Twitter — sab kuch download karein</div>
-    <div class="badges">
-      <span class="badge">📺 YouTube</span>
-      <span class="badge">📸 Instagram</span>
-      <span class="badge">👤 Facebook</span>
-      <span class="badge">📌 Pinterest</span>
-      <span class="badge">🐦 Twitter/X</span>
-      <span class="badge">🎵 TikTok</span>
-      <span class="badge">+1000 sites</span>
+<canvas id="particles"></canvas>
+
+<nav>
+  <a class="brand" href="/">
+    <img src="/static/logo_nav.png" alt="ZYROX" />
+    <div class="brand-text">
+      <span class="brand-name">ZYROX</span>
+      <span class="brand-sub">DOWNLOADER</span>
     </div>
+  </a>
+  <div class="nav-links">
+    <a href="#features">Features</a>
+    <a href="#how">How To</a>
+    <button class="sound-toggle" id="soundBtn" title="Toggle sound">🔊</button>
   </div>
+</nav>
 
-  <div class="card">
-    <label style="font-size:15px;color:#ccc;">Video ka link yahan paste karein:</label>
-    <div class="input-row">
-      <input type="text" id="url" placeholder="https://youtube.com/watch?v=... ya Instagram/Facebook link"
-             autocomplete="off" />
-      <button id="fetchBtn">🔍 Fetch</button>
+<section class="hero">
+  <div class="hero-badge"><span class="dot"></span> 4D Turbo Engine · 1000+ Sites</div>
+  <h1 class="title">Download ANY<br/>Video in <span class="down">⚡</span> Seconds</h1>
+  <p class="subtitle">YouTube, Instagram, Facebook, Twitter/X, TikTok, Pinterest, Reddit aur 1000+ sites se video download karo — 4K quality mein, ek click mein.</p>
+  <div class="platforms">
+    <span class="platform-chip">▶ YouTube</span>
+    <span class="platform-chip">📸 Instagram</span>
+    <span class="platform-chip">📘 Facebook</span>
+    <span class="platform-chip">𝕏 Twitter/X</span>
+    <span class="platform-chip">📌 Pinterest</span>
+    <span class="platform-chip">🎵 TikTok</span>
+    <span class="platform-chip">👻 Snapchat</span>
+    <span class="platform-chip">🎬 Vimeo</span>
+  </div>
+</section>
+
+<section class="downloader">
+  <div class="downloader-card">
+    <div class="url-wrap">
+      <span class="url-icon">🔗</span>
+      <input type="text" id="urlInput" class="url-input" placeholder="Yahan video link paste karein..." autocomplete="off" spellcheck="false" />
+      <button class="paste-btn" id="pasteBtn">PASTE</button>
     </div>
 
-    <div id="errorBox" class="error" style="display:none;"></div>
-    <div id="result" class="result"></div>
-  </div>
+    <div class="progress-stage" id="stage">
+      <div class="ring-wrap" id="ringWrap">
+        <svg viewBox="0 0 220 220">
+          <defs>
+            <linearGradient id="grad" x1="0%" y1="0%" x2="100%" y2="100%">
+              <stop offset="0%" stop-color="#00f0ff"/>
+              <stop offset="50%" stop-color="#7a3bff"/>
+              <stop offset="100%" stop-color="#ff2bd6"/>
+            </linearGradient>
+          </defs>
+          <circle class="ring-bg" cx="110" cy="110" r="100"/>
+          <circle class="ring-track" cx="110" cy="110" r="100"/>
+          <circle class="ring-glow" id="ringGlow" cx="110" cy="110" r="100"/>
+          <circle class="ring-progress" id="ringProgress" cx="110" cy="110" r="100"/>
+        </svg>
+        <div class="orbit-dot"></div>
+        <div class="orbit-dot d2"></div>
+        <div class="orbit-dot d3"></div>
+        <div class="ring-content">
+          <div class="ring-icon" id="ringIcon">⬇️</div>
+          <div class="ring-pct" id="ringPct">0%</div>
+          <div class="ring-status" id="ringStatus">Ready</div>
+          <div class="ring-size" id="ringSize"></div>
+        </div>
+      </div>
 
-  <div class="footer">
-    <p>Backend engine: <strong>{{ backend }}</strong> • Made with ❤️ using yt-dlp</p>
-    <p style="margin-top:6px;">Sirf personal use ke liye. Copyright ka dhyan rakhein.</p>
-  </div>
-</div>
+      <button class="btn-download" id="dlBtn">
+        <span class="btn-icon">⬇</span><span id="btnText">DOWNLOAD</span>
+      </button>
+      <div class="status-text" id="statusText"></div>
 
-<script>
-const urlInput = document.getElementById('url');
-const fetchBtn = document.getElementById('fetchBtn');
-const result   = document.getElementById('result');
-const errorBox = document.getElementById('errorBox');
-
-function showError(msg) {
-  errorBox.textContent = '❌ ' + msg;
-  errorBox.style.display = 'block';
-  result.classList.remove('show');
-}
-function clearError() { errorBox.style.display = 'none'; }
-
-urlInput.addEventListener('keydown', e => { if (e.key === 'Enter') fetchBtn.click(); });
-
-fetchBtn.addEventListener('click', async () => {
-  const url = urlInput.value.trim();
-  if (!url) { showError('Pehle ek URL to daalein!'); return; }
-  clearError();
-  fetchBtn.disabled = true;
-  fetchBtn.innerHTML = '<span class="spinner"></span>Fetching...';
-  result.classList.remove('show');
-
-  try {
-    const res = await fetch('/api/fetch', {
-      method: 'POST', headers: {'Content-Type':'application/json'},
-      body: JSON.stringify({url})
-    });
-    const data = await res.json();
-    if (!data.ok) throw new Error(data.error || 'Kuchh gadbad hai.');
-
-    // Two paths: ytdlp returns info for format selection; telegram returns job_id directly
-    if (data.job_id) {
-      renderProgress(data.job_id, url);
-    } else {
-      renderInfo(data.info, url);
-    }
-  } catch (err) {
-    showError(err.message);
-  } finally {
-    fetchBtn.disabled = false;
-    fetchBtn.textContent = '🔍 Fetch';
-  }
-});
-
-function renderInfo(info, url) {
-  const dur = info.duration ? `${Math.floor(info.duration/60)}:${String(info.duration%60).padStart(2,'0')}` : '';
-  const thumbHtml = info.thumbnail
-    ? `<img class="thumb" src="${info.thumbnail}" alt="thumbnail" onerror="this.style.display='none'"/>`
-    : `<div class="thumb" style="background:#222;display:flex;align-items:center;justify-content:center;font-size:48px;">🎞️</div>`;
-
-  let formatsHtml = '';
-  info.formats.forEach(f => {
-    const label = f.has_video ? f.resolution : (f.has_audio ? 'Audio only' : f.resolution);
-    formatsHtml += `
-      <button class="q-btn" data-fmt="${f.format_id}" data-ext="${f.ext}">
-        <div class="q-res">${label} · ${f.ext.toUpperCase()}</div>
-        <div class="q-sub">${f.filesize_human}${f.has_audio && f.has_video ? ' • Video+Audio' : f.has_audio ? ' • Audio' : ' • Video'}</div>
-      </button>`;
-  });
-
-  if (!formatsHtml) {
-    formatsHtml = `<button class="q-btn" data-fmt="" data-ext="mp4">
-      <div class="q-res">Best Quality · MP4</div><div class="q-sub">Auto</div></button>`;
-  }
-
-  result.innerHTML = `
-    <div class="media">
-      ${thumbHtml}
-      <div class="meta">
-        <span class="platform-tag">${info.platform}</span>
-        <div class="title">${escapeHtml(info.title)}</div>
-        <div class="uploader">${escapeHtml(info.uploader || '')} ${dur ? '• ' + dur : ''}</div>
+      <div class="result-card" id="resultCard">
+        <div class="result-title" id="resultTitle"></div>
+        <div class="result-meta">
+          <span id="resultSize">📦 —</span>
+          <span id="resultBot">🤖 —</span>
+          <span id="resultPlatform">🎬 —</span>
+        </div>
+        <a class="btn-get" id="resultLink" href="#" download>⬇️ GET FILE</a>
       </div>
     </div>
-    <h3 style="margin-bottom:12px;">⬇️ Quality choose karein:</h3>
-    <div class="quality-list">${formatsHtml}</div>
-    <div id="dl-progress" style="margin-top:16px;"></div>
-  `;
-  result.classList.add('show');
+  </div>
+</section>
 
-  result.querySelectorAll('.q-btn').forEach(btn => {
-    btn.addEventListener('click', () => startDownload(url, btn.dataset.fmt, btn));
-  });
+<section class="features" id="features">
+  <div class="feature">
+    <div class="feature-icon">⚡</div>
+    <h3>Lightning Fast</h3>
+    <p>4D turbo engine se 10x faster downloads. Seconds mein HD videos aapke phone mein.</p>
+  </div>
+  <div class="feature">
+    <div class="feature-icon">🌐</div>
+    <h3>1000+ Websites</h3>
+    <p>YouTube, Instagram, FB, Twitter/X, TikTok, Pinterest, Reddit, Vimeo aur bahut kuch.</p>
+  </div>
+  <div class="feature">
+    <div class="feature-icon">🎥</div>
+    <h3>4K Ultra HD</h3>
+    <p>360p se lekar 2160p 4K tak. Best quality mein video download, no watermarks.</p>
+  </div>
+  <div class="feature">
+    <div class="feature-icon">🔒</div>
+    <h3>100% Safe</h3>
+    <p>No ads, no tracking, no sign-up. Direct encrypted downloads, bilkul private.</p>
+  </div>
+</section>
+
+<footer>
+  Made with <span>♥</span> by <span>ZYROX</span> · © 2026 ZYROX DOWNLOADER · All platforms supported
+</footer>
+
+<script>
+/* ============================================================
+   WEB AUDIO — sound effects (synthesized, no files needed)
+   ============================================================ */
+let audioCtx=null, soundOn=true;
+const soundBtn=document.getElementById('soundBtn');
+soundBtn.onclick=()=>{
+  soundOn=!soundOn;
+  soundBtn.textContent=soundOn?'🔊':'🔇';
+  soundBtn.classList.toggle('muted',!soundOn);
+  if(soundOn){ensureAudio();playTone(880,.08,'sine',.15);setTimeout(()=>playTone(1320,.1,'sine',.15),80);}
+};
+function ensureAudio(){
+  if(!audioCtx){
+    try{audioCtx=new (window.AudioContext||window.webkitAudioContext)();}catch(e){}
+  }
+  if(audioCtx && audioCtx.state==='suspended')audioCtx.resume();
 }
+function playTone(freq,dur=0.15,type='sine',vol=0.2){
+  if(!soundOn)return;ensureAudio();if(!audioCtx)return;
+  const o=audioCtx.createOscillator(), g=audioCtx.createGain();
+  o.type=type;o.frequency.value=freq;
+  g.gain.value=0;
+  o.connect(g);g.connect(audioCtx.destination);
+  const t=audioCtx.currentTime;
+  g.gain.linearRampToValueAtTime(vol,t+0.01);
+  g.gain.exponentialRampToValueAtTime(0.0001,t+dur);
+  o.start(t);o.stop(t+dur+0.02);
+}
+function playClick(){playTone(1200,.05,'square',.12);}
+function playSuccess(){
+  [523,659,784,1046].forEach((f,i)=>setTimeout(()=>playTone(f,.18,'triangle',.2),i*90));
+}
+function playError(){playTone(200,.25,'sawtooth',.2);setTimeout(()=>playTone(150,.3,'sawtooth',.2),120);}
+function playProgress(){/* tiny tick — too much noise, disabled */}
+function playWhoosh(){
+  if(!soundOn)return;ensureAudio();if(!audioCtx)return;
+  const o=audioCtx.createOscillator(),g=audioCtx.createGain();
+  o.type='sine';o.frequency.setValueAtTime(200,audioCtx.currentTime);
+  o.frequency.exponentialRampToValueAtTime(2000,audioCtx.currentTime+0.3);
+  g.gain.value=.15;g.gain.exponentialRampToValueAtTime(.001,audioCtx.currentTime+0.35);
+  o.connect(g);g.connect(audioCtx.destination);
+  o.start();o.stop(audioCtx.currentTime+0.4);
+}
+function playPop(){playTone(600,.08,'sine',.18);setTimeout(()=>playTone(900,.08,'sine',.12),60);}
 
-async function startDownload(url, formatId, btn) {
-  result.querySelectorAll('.q-btn').forEach(b => b.disabled = true);
-  btn.innerHTML = '<span class="spinner"></span>Downloading...';
-  const progressBox = document.getElementById('dl-progress');
-  progressBox.innerHTML = '<div class="card" style="padding:18px;background:rgba(0,0,0,0.25);text-align:center;"><span class="spinner"></span>Server download kar raha hai, please wait...</div>';
-
-  try {
-    const res = await fetch('/api/download', {
-      method:'POST', headers:{'Content-Type':'application/json'},
-      body: JSON.stringify({url, format_id: formatId})
+/* ============================================================
+   PARTICLE BACKGROUND (canvas)
+   ============================================================ */
+const canvas=document.getElementById('particles'),c=canvas.getContext('2d');
+let W,H,particles=[];
+function resize(){W=canvas.width=innerWidth;H=canvas.height=innerHeight;}
+addEventListener('resize',resize);resize();
+function initParticles(){
+  particles=[];const n=Math.min(80,Math.floor(W*H/18000));
+  for(let i=0;i<n;i++){
+    particles.push({
+      x:Math.random()*W,y:Math.random()*H,
+      vx:(Math.random()-.5)*.4,vy:(Math.random()-.5)*.4,
+      r:Math.random()*2+.5,
+      col:Math.random()<.5?'0,240,255':'255,43,214'
     });
-    const data = await res.json();
-    if (!data.ok) throw new Error(data.error);
-    await pollJob(data.job_id, progressBox);
-  } catch(err) {
-    progressBox.innerHTML = `<div class="error">❌ ${err.message}</div>`;
-    result.querySelectorAll('.q-btn').forEach(b => b.disabled = false);
-    btn.innerHTML = btn.querySelector('.q-res').textContent;
   }
 }
-
-async function pollJob(jobId, box) {
-  while (true) {
-    const res = await fetch('/api/status/' + jobId);
-    const data = await res.json();
-    if (!data.ok) throw new Error(data.error);
-    const j = data.job;
-    if (j.status === 'done') {
-      const size = j.filesize_human || '';
-      box.innerHTML = `
-        <div class="success-box">
-          ✅ <strong>Taiyaar!</strong> "${escapeHtml(j.title || 'Video')}" ${size ? '('+size+')' : ''}
-          <br/><a href="/files/${j.filename}" download>⬇️ Download File</a>
-        </div>`;
-      return;
+initParticles();
+function drawParticles(){
+  c.clearRect(0,0,W,H);
+  particles.forEach(p=>{
+    p.x+=p.vx;p.y+=p.vy;
+    if(p.x<0||p.x>W)p.vx*=-1;
+    if(p.y<0||p.y>H)p.vy*=-1;
+    c.beginPath();c.arc(p.x,p.y,p.r,0,Math.PI*2);
+    c.fillStyle=`rgba(${p.col},.6)`;c.fill();
+  });
+  // connections
+  for(let i=0;i<particles.length;i++){
+    for(let j=i+1;j<particles.length;j++){
+      const a=particles[i],b=particles[j];
+      const dx=a.x-b.x,dy=a.y-b.y,d=Math.sqrt(dx*dx+dy*dy);
+      if(d<120){
+        c.beginPath();c.moveTo(a.x,a.y);c.lineTo(b.x,b.y);
+        c.strokeStyle=`rgba(122,59,255,${(1-d/120)*.15})`;c.lineWidth=.6;c.stroke();
+      }
     }
-    if (j.status === 'error') {
-      throw new Error(j.error || 'Download failed.');
-    }
-    const statusText = {
-      queued: 'Queue me wait kar raha hai...',
-      contacting_bot: 'Telegram bot @' + (j.bot || 'allsaverbot') + ' se baat kar raha hai...',
-      selecting_quality: 'Best quality select kar raha hai...',
-      downloading_from_bot: 'Bot se file download kar raha hai (server pe)...',
-      downloading: 'Download ho raha hai...',
-      fallback_bot: 'Direct download nahi ho paya, Telegram bot se try kar raha hai...',
-    }[j.status] || j.status;
-    box.innerHTML = `<div class="card" style="padding:18px;background:rgba(0,0,0,0.25);text-align:center;"><span class="spinner"></span>${statusText}</div>`;
-    await new Promise(r => setTimeout(r, 1500));
   }
+  requestAnimationFrame(drawParticles);
 }
+drawParticles();
 
-function renderProgress(jobId, url) {
-  result.innerHTML = `<div id="dl-progress"></div>`;
-  result.classList.add('show');
-  pollJob(jobId, document.getElementById('dl-progress'));
-}
+/* ============================================================
+   MOUSE TILT on ring (4D effect)
+   ============================================================ */
+const ringWrap=document.getElementById('ringWrap');
+document.addEventListener('mousemove',e=>{
+  const rx=(e.clientY/innerHeight-.5)*-16;
+  const ry=(e.clientX/innerWidth-.5)*16;
+  if(!ringWrap.classList.contains('downloading')){
+    ringWrap.style.transform=`rotateX(${rx}deg) rotateY(${ry}deg)`;
+  }
+});
+document.addEventListener('mouseleave',()=>{
+  if(!ringWrap.classList.contains('downloading'))ringWrap.style.transform='';
+});
 
-function escapeHtml(s) {
-  if (!s) return '';
-  return String(s).replace(/[&<>"']/g, c => ({
-    '&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'
-  }[c]));
+/* ============================================================
+   PROGRESS RING
+   ============================================================ */
+const CIRC=2*Math.PI*100;
+const ringProgress=document.getElementById('ringProgress');
+const ringGlow=document.getElementById('ringGlow');
+const ringPct=document.getElementById('ringPct');
+const ringStatus=document.getElementById('ringStatus');
+const ringSize=document.getElementById('ringSize');
+const ringIcon=document.getElementById('ringIcon');
+const stage=document.getElementById('stage');
+function setProgress(pct,status,icon){
+  pct=Math.max(0,Math.min(100,pct));
+  const off=CIRC-(CIRC*pct/100);
+  ringProgress.style.strokeDashoffset=off;
+  ringGlow.style.strokeDashoffset=off;
+  ringPct.textContent=Math.floor(pct)+'%';
+  if(status)ringStatus.textContent=status;
+  if(icon)ringIcon.textContent=icon;
 }
+function resetRing(){
+  setProgress(0,'Ready','⬇️');
+  ringSize.textContent='';
+  stage.classList.remove('downloading');
+  ringWrap.classList.remove('tilting');
+  ringWrap.style.transform='';
+}
+resetRing();
+
+/* ============================================================
+   DOWNLOAD LOGIC
+   ============================================================ */
+const urlInput=document.getElementById('urlInput');
+const pasteBtn=document.getElementById('pasteBtn');
+const dlBtn=document.getElementById('dlBtn');
+const btnText=document.getElementById('btnText');
+const statusText=document.getElementById('statusText');
+const resultCard=document.getElementById('resultCard');
+
+pasteBtn.onclick=async()=>{
+  playClick();
+  try{const t=await navigator.clipboard.readText();urlInput.value=t;urlInput.focus();playPop();}
+  catch(e){statusText.textContent='Clipboard access denied — manually paste karein';statusText.className='status-text error';}
+};
+
+dlBtn.onclick=async(e=>{
+  // Ripple
+  const rect=dlBtn.getBoundingClientRect();
+  const r=document.createElement('span');r.className='ripple';
+  const d=Math.max(rect.width,rect.height);
+  r.style.width=r.style.height=d+'px';
+  r.style.left=(e.clientX-rect.left-d/2)+'px';
+  r.style.top=(e.clientY-rect.top-d/2)+'px';
+  dlBtn.appendChild(r);setTimeout(()=>r.remove(),700);
+
+  const url=urlInput.value.trim();
+  if(!url){playError();statusText.textContent='⚠️ Pehle video link paste karein';statusText.className='status-text error';urlInput.focus();return;}
+  if(!/^https?:\/\//i.test(url)){playError();statusText.textContent='⚠️ Valid URL daalein (https:// se start hona chahiye)';statusText.className='status-text error';return;}
+
+  playWhoosh();
+  ensureAudio();
+  resultCard.classList.remove('show');
+  statusText.textContent='';statusText.className='status-text';
+  dlBtn.disabled=true;btnText.textContent='PROCESSING...';
+  stage.classList.add('downloading');
+  ringWrap.classList.add('tilting');
+  ringIcon.textContent='⏳';
+  setProgress(5,'Connecting...','⏳');
+  ringSize.textContent='';
+
+  let jobId;
+  try{
+    const res=await fetch('/api/download',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({url})});
+    const data=await res.json();
+    if(!data.ok)throw new Error(data.error||'Submit failed');
+    jobId=data.job_id;
+  }catch(err){
+    playError();dlBtn.disabled=false;btnText.textContent='DOWNLOAD';
+    statusText.textContent='❌ '+err.message;statusText.className='status-text error';
+    stage.classList.remove('downloading');ringWrap.classList.remove('tilting');resetRing();
+    return;
+  }
+
+  // Poll status
+  let pct=5,lastStatus='',lastPct=0;
+  const poll=async()=>{
+    try{
+      const r=await fetch('/api/status/'+jobId);
+      const d=await r.json();
+      const j=d.job;
+      const backend=j.backend||'',bot=j.bot||'',wait=j.wait_sec||0,fsize=j.filesize_human||'';
+
+      let sLabel='Waiting...',icon='⏳',p=pct;
+      const st=j.status;
+
+      if(st==='queued'||st==='contacting_bot'){sLabel='Connecting bot...';p=Math.min(15,pct+1);icon='🤖';}
+      else if(st==='selecting_quality'){sLabel='Selecting quality...';p=Math.min(35,pct+2);icon='🎯';}
+      else if(st==='downloading_from_bot'||st==='downloading'){
+        sLabel='Downloading '+fsize;p=Math.min(88,35+Math.min(53,wait*1.5));
+        icon='📥';
+        if(fsize)ringSize.textContent=fsize;
+      }
+      else if(st==='fallback_bot'){sLabel='Trying faster server...';p=Math.min(25,pct+1);icon='🔄';}
+      else if(st==='done'){
+        p=100;sLabel='COMPLETE!';icon='✅';
+        setProgress(100,'DONE','✅');
+        ringSize.textContent=j.filesize_human||'';
+        playSuccess();
+        dlBtn.disabled=false;btnText.textContent='DOWNLOAD ANOTHER';
+        stage.classList.remove('downloading');ringWrap.classList.remove('tilting');
+        // Show result
+        resultCard.classList.add('show');
+        document.getElementById('resultTitle').textContent=j.title||'Video';
+        document.getElementById('resultSize').textContent='📦 '+(j.filesize_human||'—');
+        document.getElementById('resultBot').textContent=bot?('🤖 '+bot):(backend?('⚡ '+backend):'');
+        document.getElementById('resultPlatform').textContent='🎬 '+(j.platform||'Video');
+        const link=document.getElementById('resultLink');
+        link.href='/files/'+j.filename;
+        statusText.textContent='🎉 Download taiyaar! Niche button se save karein.';
+        statusText.className='status-text success';
+        return;
+      }
+      else if(st==='error'){
+        playError();
+        dlBtn.disabled=false;btnText.textContent='TRY AGAIN';
+        stage.classList.remove('downloading');ringWrap.classList.remove('tilting');
+        ringIcon.textContent='❌';
+        ringStatus.textContent='FAILED';
+        statusText.textContent='❌ '+(j.error||'Download fail ho gaya');
+        statusText.className='status-text error';
+        return;
+      }
+
+      if(sLabel!==lastStatus){playPop();lastStatus=sLabel;}
+      setProgress(p,sLabel,icon);
+      pct=p;
+
+      setTimeout(poll,1500);
+    }catch(err){
+      setTimeout(poll,2500);
+    }
+  };
+  poll();
+});
+
+// Enter key triggers download
+urlInput.addEventListener('keydown',e=>{if(e.key==='Enter')dlBtn.click();});
+
+// Paste auto-focus
+urlInput.addEventListener('paste',()=>{setTimeout(()=>{if(urlInput.value)playPop();},100);});
+
+// Initial welcome chime (after first interaction to satisfy autoplay policy)
+document.addEventListener('click',()=>{ensureAudio();},{once:true});
+
+// Ripple on any button
+document.querySelectorAll('button').forEach(b=>{
+  b.addEventListener('click',e=>{
+    if(b===dlBtn)return;
+    const rect=b.getBoundingClientRect();
+    const r=document.createElement('span');r.className='ripple';
+    const d=Math.max(rect.width,rect.height);
+    r.style.width=r.style.height=d+'px';
+    r.style.left=(e.clientX-rect.left-d/2)+'px';
+    r.style.top=(e.clientY-rect.top-d/2)+'px';
+    b.appendChild(r);setTimeout(()=>r.remove(),700);
+    playClick();
+  });
+});
 </script>
 </body>
 </html>
