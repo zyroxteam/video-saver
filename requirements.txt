@@ -1,5 +1,5 @@
 flask>=3.0
 gunicorn>=21.2
-yt-dlp>=2024.01.01
+yt-dlp>=2026.03.17
 pyrogram>=2.0
 tgcrypto>=1.2

@@ -2,14 +2,11 @@
 All-in-One Video Downloader Website (VideoSaver)
 =================================================
 Supports YouTube, Instagram, Facebook, Twitter/X, Pinterest, TikTok, Reddit
-and 1000+ sites via yt-dlp. When a platform blocks guest downloads
-(e.g. Instagram, X without cookies) the backend automatically falls back to
-the Telegram bot @allsaverbot (if TELEGRAM_SESSION_STRING is configured).
+and 1000+ sites via yt-dlp. Falls back through multiple Telegram bots if
+direct yt-dlp access is blocked (common on cloud/datacenter IPs).
 
-Backends:
-  - ytdlp     : direct (fast, default)
-  - telegram  : always route through the bot
-  - auto      : try yt-dlp, fall back to bot on failure (default if .env exists)
+Backends (auto mode):
+  yt-dlp (direct)  →  @YTfinderbot  →  @allsaverbot
 """
 import os, re, uuid, time, threading, urllib.parse, asyncio
 from pathlib import Path
@@ -44,12 +41,16 @@ DOWNLOAD_DIR = APP_ROOT / "downloads"
 DOWNLOAD_DIR.mkdir(exist_ok=True)
 
 BACKEND = os.environ.get("DOWNLOAD_BACKEND", "ytdlp").lower()
-# If .env has telegram credentials and backend not explicitly set, use "auto"
 if BACKEND == "ytdlp" and os.environ.get("TELEGRAM_SESSION_STRING") and HAS_PYROGRAM:
     BACKEND = "auto"
 
+# Comma-separated bot list. @YTfinderbot first (fastest for YT/IG/Pin), @allsaverbot second (all platforms).
+BOTS_RAW = os.environ.get("BOT_USERNAME", "YTfinderbot,allsaverbot")
+BOT_LIST = [b.strip().lstrip("@") for b in BOTS_RAW.split(",") if b.strip()]
+PRIMARY_BOT = BOT_LIST[0] if BOT_LIST else "allsaverbot"
+
 app = Flask(__name__)
-app.config["MAX_CONTENT_LENGTH"] = 500 * 1024 * 1024  # 500 MB
+app.config["MAX_CONTENT_LENGTH"] = 500 * 1024 * 1024
 
 jobs = {}
 jobs_lock = threading.Lock()
@@ -96,19 +97,26 @@ YTDL_COMMON = {
     "concurrent_fragment_downloads": 4,
     "nocheckcertificate": True, "prefer_ffmpeg": True,
     "merge_output_format": "mp4",
-    "extractor_args": {"youtube": {"player_client": ["android", "web"]}},
+    "extractor_args": {
+        "youtube": {"player_client": ["mweb", "android", "ios"]},
+    },
+    "extractor_retries": 3,
+    "file_access_retries": 3,
 }
 
-def _ytdlp_download(url: str, outtmpl: str, format_id=None, fetch_only=False):
+def _ytdlp_download(url, outtmpl, format_id=None, fetch_only=False):
     opts = dict(YTDL_COMMON)
     opts["outtmpl"] = outtmpl
+    for fp in ("/usr/bin/ffmpeg", "/usr/local/bin/ffmpeg"):
+        if Path(fp).exists():
+            opts["ffmpeg_location"] = fp; break
     if fetch_only:
         opts["skip_download"] = True
         opts["socket_timeout"] = 25
-    if format_id:
-        opts["format"] = format_id
+    if format_id and format_id not in ("1","best","0","mp4",""):
+        opts["format"] = f"({format_id})/18/bv*[ext=mp4]+ba[ext=m4a]/b[ext=mp4]/bv*+ba/b/best"
     else:
-        opts["format"] = "bv*[ext=mp4]+ba[ext=m4a]/b[ext=mp4]/bv*+ba/b"
+        opts["format"] = "18/bv*[ext=mp4]+ba[ext=m4a]/b[ext=mp4]/bv*+ba/b/best"
     with yt_dlp.YoutubeDL(opts) as ydl:
         info = ydl.extract_info(url, download=not fetch_only)
         if info.get("_type") == "playlist":
@@ -160,160 +168,218 @@ def download_ytdlp(job_id, url, format_id):
     with jobs_lock:
         jobs[job_id]["status"] = "downloading"
         jobs[job_id]["backend"] = "yt-dlp"
-    try:
-        outtmpl = str(DOWNLOAD_DIR / f"{job_id}.%(ext)s")
-        info, fn = _ytdlp_download(url, outtmpl, format_id=format_id)
-        with jobs_lock:
-            jobs[job_id].update(status="done", title=info.get("title","Video"),
-                                filename=fn.name, filesize=fn.stat().st_size)
-    except Exception as e:
-        with jobs_lock:
-            jobs[job_id]["error"] = str(e)[:300]
-        raise
+    outtmpl = str(DOWNLOAD_DIR / f"{job_id}.%(ext)s")
+    info, fn = _ytdlp_download(url, outtmpl, format_id=format_id)
+    with jobs_lock:
+        jobs[job_id].update(status="done", title=info.get("title","Video"),
+                            filename=fn.name, filesize=fn.stat().st_size)
 
-# ------------- Telegram bot backend (@allsaverbot) -------------
-def download_via_telegram(job_id, url):
+# ------------- Generic Telegram-bot engine (tries multiple bots) -------------
+# Per-bot button keyword preferences — what caption/text on a button means
+# "give me the video file" in that bot's UX.
+BOT_VIDEO_KEYWORDS = {
+    "ytfinderbot": ["video", "🎞", "mp4", "hd", "download", "get"],
+    "allsaverbot": ["1080", "720", "480", "360", "240"],
+}
+# Phrases that mean "the bot failed"
+ERROR_KEYWORDS = ("error","failed","not found","invalid","limit","blocked",
+                  "try later","can't","sorry","unfortunately","nahi mila",
+                  "music was not found")
+
+def _pick_button(bot_name, msg, quality_pref=None):
+    """Pick the best quality/video button from a bot message. Returns button or None."""
+    rm = msg.reply_markup
+    if not rm or not getattr(rm,"inline_keyboard",None):
+        return None
+    btns = [b for row in rm.inline_keyboard for b in row if b.callback_data]
+    if not btns:
+        return None
+    kws = BOT_VIDEO_KEYWORDS.get(bot_name.lower(), ["video","mp4","hd","1080","720","480","360","download","🎞"])
+
+    # First pass: look for explicit quality preference (e.g. 720/1080)
+    if quality_pref:
+        for b in btns:
+            if quality_pref.lower() in (b.text or "").lower():
+                return b
+
+    # Second pass: highest-quality video button among video-type keywords
+    quality_order = ["2160","1440","1080","hd","720","480","360","240","mp4","video","🎞","download"]
+    best = None; best_score = -1
+    for b in btns:
+        t = (b.text or "").lower()
+        for i, k in enumerate(quality_order):
+            if k in t:
+                # Earlier in list = higher priority
+                score = len(quality_order) - i
+                if score > best_score:
+                    best_score = score; best = b
+                break
+    if best:
+        return best
+
+    # Last resort: any button that isn't audio/mp3
+    for b in btns:
+        t = (b.text or "").lower()
+        if "audio" in t or "mp3" in t or "🎧" in t or "add to group" in t:
+            continue
+        return b
+    return None
+
+async def _bot_download_one(bot_name, url, job_id, api_id, api_hash, session):
+    """Try one bot. Returns (filename, title) on success, raises on failure."""
+    bot = "@" + bot_name
+    c = PyroClient(f"jb_{job_id}_{bot_name}_{uuid.uuid4().hex[:6]}",
+                   api_id=api_id, api_hash=api_hash,
+                   session_string=session, in_memory=True, no_updates=True)
+    async with c:
+        # Drain — cancel any prior state
+        try:
+            await c.send_message(bot, "/cancel"); await asyncio.sleep(0.8)
+        except Exception: pass
+        try:
+            async for _ in c.get_chat_history(bot, limit=15):
+                pass
+        except Exception: pass
+        await asyncio.sleep(0.5)
+
+        await c.send_message(bot, url)
+        t0 = time.time()
+        deadline = t0 + 90
+        clicked = False
+        quality_msg_id = None
+        received_video = False
+        title = "Video"
+        wait_after_click = 0
+
+        while time.time() < deadline:
+            await asyncio.sleep(1.5)
+            async for m in c.get_chat_history(bot, limit=12):
+                if m.outgoing: continue
+                if m.date and m.date.timestamp() < t0-1: continue
+                if m.id == quality_msg_id: continue
+
+                # — Got media?
+                if m.video:
+                    with jobs_lock:
+                        jobs[job_id]["status"] = "downloading_from_bot"
+                        jobs[job_id]["wait_sec"] = int(time.time()-t0)
+                        if m.caption: title = m.caption[:120]
+                    out = DOWNLOAD_DIR / f"{job_id}_{bot_name}_{sanitize(m.video.file_name or f'video.mp4')}"
+                    dl = await c.download_media(m, file_name=str(out))
+                    return Path(dl).name, title
+
+                if m.document and m.document.mime_type and "video" in m.document.mime_type:
+                    with jobs_lock:
+                        jobs[job_id]["status"] = "downloading_from_bot"
+                        if m.caption: title = m.caption[:120]
+                    out = DOWNLOAD_DIR / f"{job_id}_{bot_name}_{sanitize(m.document.file_name or f'video.bin')}"
+                    dl = await c.download_media(m, file_name=str(out))
+                    return Path(dl).name, title
+
+                if m.audio:
+                    # Some bots return audio for music links; skip for video flow
+                    continue
+                if m.photo or m.voice or m.video_note or m.animation:
+                    # Photo with caption is often the thumbnail/format menu
+                    pass
+
+                # — Error text?
+                if m.text:
+                    tl = m.text.lower()
+                    if any(k in tl for k in ERROR_KEYWORDS):
+                        if "add to group" in tl:
+                            # Bot telling us to add to group = unsupported platform
+                            raise RuntimeError(f"@{bot_name} doesn't support this link")
+                        raise RuntimeError(f"@{bot_name}: {m.text[:150]}")
+
+                # — Buttons? Click a video/quality button once
+                if not clicked and m.reply_markup and getattr(m.reply_markup, "inline_keyboard", None):
+                    btn = _pick_button(bot_name, m)
+                    if btn:
+                        with jobs_lock:
+                            jobs[job_id]["status"] = "selecting_quality"
+                            if m.caption: title = m.caption[:120]
+                        try:
+                            await c.request_callback_answer(m.chat.id, m.id, btn.callback_data, timeout=30)
+                        except Exception:
+                            pass
+                        clicked = True
+                        quality_msg_id = m.id
+                        deadline = time.time() + 180  # give more time after click
+                        wait_after_click = time.time()
+            # status updates while waiting
+            with jobs_lock:
+                elapsed = int(time.time()-t0)
+                jobs[job_id]["wait_sec"] = elapsed
+                if clicked:
+                    jobs[job_id]["status"] = "downloading_from_bot"
+                else:
+                    jobs[job_id]["status"] = "contacting_bot"
+        raise TimeoutError(f"@{bot_name} ne time me video nahi bheji")
+
+def download_via_bots(job_id, url):
+    """Try each configured Telegram bot in order; first success wins."""
     if not HAS_PYROGRAM:
-        raise RuntimeError("Pyrogram/tgcrypto install nahi hai (`pip install pyrogram tgcrypto`)")
+        raise RuntimeError("Pyrogram/tgcrypto install nahi hai")
     make_event_loop()
-
     api_id = int(os.environ.get("TELEGRAM_API_ID","0"))
     api_hash = os.environ.get("TELEGRAM_API_HASH","")
     session = os.environ.get("TELEGRAM_SESSION_STRING","")
-    bot = os.environ.get("BOT_USERNAME","allsaverbot")
     if not api_id or not api_hash or not session:
         raise RuntimeError("Telegram credentials missing.")
 
-    with jobs_lock:
-        jobs[job_id]["status"] = "contacting_bot"
-        jobs[job_id]["backend"] = "telegram @"+bot
-        jobs[job_id]["bot"] = "@"+bot.lstrip("@")
+    errors = []
+    for bot_name in BOT_LIST:
+        with jobs_lock:
+            jobs[job_id]["backend"] = f"telegram @{bot_name}"
+            jobs[job_id]["bot"] = "@" + bot_name
+        try:
+            fn, title = asyncio.run(_bot_download_one(bot_name, url, job_id, api_id, api_hash, session))
+            with jobs_lock:
+                jobs[job_id].update(status="done", title=title, filename=fn,
+                                    filesize=(DOWNLOAD_DIR/fn).stat().st_size)
+            return
+        except Exception as e:
+            msg = f"@{bot_name}: {str(e)[:150]}"
+            errors.append(msg)
+            print(f"[job {job_id}] bot {bot_name} failed: {e}")
+    # All bots failed
+    raise RuntimeError(" | ".join(errors))
 
-    async def pick_btn(msg):
-        rm = msg.reply_markup
-        if not rm or not getattr(rm,"inline_keyboard",None):
-            return None
-        btns = []
-        for row in rm.inline_keyboard:
-            for b in row:
-                t = (b.text or "").lower()
-                if not b.callback_data: continue
-                pref = -1
-                if "1080" in t: pref=50
-                elif "720" in t: pref=40
-                elif "480" in t: pref=30
-                elif "360" in t: pref=20
-                elif "240" in t: pref=10
-                elif "mp3" in t or "audio" in t: pref=5
-                if pref>0: btns.append((pref,b))
-        if not btns: return None
-        btns.sort(key=lambda x:-x[0])
-        return btns[0][1]
+# Backwards compat alias (used in older routes/frontend)
+def download_via_telegram(job_id, url):
+    return download_via_bots(job_id, url)
 
-    async def _run():
-        c = PyroClient(f"job_{job_id}", api_id=api_id, api_hash=api_hash,
-                       session_string=session, in_memory=True, no_updates=True)
-        async with c:
-            try:
-                await c.send_message(bot, "/start")
-                await asyncio.sleep(1.5)
-            except Exception: pass
-            await c.send_message(bot, url)
-            t0 = time.time()
-            deadline = t0 + 90
-            qmsg, qbtn = None, None
-            while time.time() < deadline:
-                await asyncio.sleep(1.2)
-                async for m in c.get_chat_history(bot, limit=8):
-                    if m.outgoing: continue
-                    if m.date and m.date.timestamp() < t0-2: continue
-                    b = await pick_btn(m)
-                    if b:
-                        qmsg, qbtn = m, b; break
-                if qbtn: break
-            if qbtn:
-                with jobs_lock:
-                    jobs[job_id]["status"] = "selecting_quality"
-                    jobs[job_id]["title"] = qmsg.caption or "Video"
-                try:
-                    await c.request_callback_answer(chat_id=qmsg.chat.id,
-                                                    message_id=qmsg.id,
-                                                    callback_data=qbtn.callback_data,
-                                                    timeout=30)
-                except Exception: pass
-                deadline = time.time() + 180
-            else:
-                deadline = time.time() + 60
-
-            while time.time() < deadline:
-                await asyncio.sleep(2)
-                async for m in c.get_chat_history(bot, limit=10):
-                    if m.outgoing: continue
-                    if m.date and m.date.timestamp() < t0-2: continue
-                    if qmsg and m.id == qmsg.id: continue
-                    fname = None; media = None
-                    if m.video:
-                        media = m.video; fname = m.video.file_name or f"{job_id}.mp4"
-                    elif m.document:
-                        if m.document.mime_type and m.document.mime_type.startswith("image/"):
-                            continue
-                        media = m.document; fname = m.document.file_name or f"{job_id}.bin"
-                    elif m.audio:
-                        media = m.audio; fname = m.audio.file_name or f"{job_id}.mp3"
-                    elif m.photo or m.voice or m.video_note or m.animation:
-                        continue
-                    else:
-                        if m.text and m.date and m.date.timestamp() > t0-2:
-                            tl = m.text.lower()
-                            if any(k in tl for k in ("error","failed","not found","invalid",
-                                                     "nahi mila","limit","blocked","try later")):
-                                raise RuntimeError(f"Bot: {m.text[:200]}")
-                        continue
-                    with jobs_lock:
-                        jobs[job_id]["status"] = "downloading_from_bot"
-                        jobs[job_id]["title"] = (m.caption or (qmsg.caption if qmsg else "") or "Video")
-                    out = DOWNLOAD_DIR / f"{job_id}_{sanitize(fname)}"
-                    dl = await c.download_media(m, file_name=str(out))
-                    return Path(dl).name, (m.caption or (qmsg.caption if qmsg else "") or "Video")
-                with jobs_lock:
-                    jobs[job_id]["wait_sec"] = int(time.time()-t0)
-            raise TimeoutError("Bot ne 3 minute me video nahi bheji.")
-
-    fn, title = asyncio.run(_run())
-    with jobs_lock:
-        jobs[job_id].update(status="done", title=title, filename=fn,
-                            filesize=(DOWNLOAD_DIR/fn).stat().st_size)
-
-# ------------- Smart wrapper: yt-dlp → telegram fallback -------------
+# ------------- Smart wrapper: yt-dlp → Telegram bots -------------
 def download_auto(job_id, url, format_id=None):
-    """Try yt-dlp; if it fails AND telegram creds exist, fall back to @allsaverbot."""
+    """Try yt-dlp first; on failure fall back through configured Telegram bots."""
     tele_ok = bool(HAS_PYROGRAM and os.environ.get("TELEGRAM_SESSION_STRING")
                    and os.environ.get("TELEGRAM_API_ID"))
-    # Try yt-dlp first
     try:
         download_ytdlp(job_id, url, format_id)
         return
     except Exception as e1:
         err1 = jobs[job_id].get("error", str(e1)[:200])
-        if not tele_ok:
-            with jobs_lock:
-                jobs[job_id]["status"] = "error"
-                jobs[job_id]["error"] = err1
-            return
+
+    if not tele_ok:
         with jobs_lock:
-            jobs[job_id]["status"] = "fallback_bot"
-            jobs[job_id]["yt_error"] = err1
-        try:
-            download_via_telegram(job_id, url)
-        except Exception as e2:
-            with jobs_lock:
-                jobs[job_id]["status"] = "error"
-                jobs[job_id]["error"] = f"yt-dlp: {err1} | Bot: {str(e2)[:200]}"
+            jobs[job_id]["status"] = "error"
+            jobs[job_id]["error"] = err1
+        return
+    with jobs_lock:
+        jobs[job_id]["status"] = "fallback_bot"
+        jobs[job_id]["yt_error"] = err1
+    try:
+        download_via_bots(job_id, url)
+    except Exception as e2:
+        with jobs_lock:
+            jobs[job_id]["status"] = "error"
+            jobs[job_id]["error"] = f"yt-dlp: {err1} | {str(e2)[:300]}"
 
 # ------------- Routes -------------
 @app.route("/")
 def home():
-    return render_template("index.html", backend=BACKEND)
+    return render_template("index.html", backend=BACKEND, bots=BOT_LIST)
 
 @app.route("/api/fetch", methods=["POST"])
 def api_fetch():
@@ -321,26 +387,23 @@ def api_fetch():
     url = (data.get("url") or "").strip()
     if not url or not URL_REGEX.match(url):
         return jsonify({"ok": False, "error": "Kripya ek valid URL daalein."}), 400
-
-    # In ytdlp/auto mode, try to fetch formats; on failure, proceed directly to bot
     if BACKEND in ("ytdlp","auto"):
         try:
             info = fetch_info_ytdlp(url)
             return jsonify({"ok": True, "info": info})
         except Exception as e:
             if BACKEND == "auto" and HAS_PYROGRAM and os.environ.get("TELEGRAM_SESSION_STRING"):
-                # skip format selection, go straight to bot download
                 job_id = uuid.uuid4().hex[:12]
                 with jobs_lock:
                     jobs[job_id] = {"status":"queued","url":url,"created":time.time()}
-                threading.Thread(target=download_via_telegram, args=(job_id,url), daemon=True).start()
+                threading.Thread(target=download_via_bots, args=(job_id,url), daemon=True).start()
                 return jsonify({"ok": True, "job_id": job_id, "direct_to_bot": True})
             return jsonify({"ok": False, "error": f"Fetch nahi ho paya: {e}"}), 400
     else:
         job_id = uuid.uuid4().hex[:12]
         with jobs_lock:
             jobs[job_id] = {"status":"queued","url":url,"created":time.time()}
-        threading.Thread(target=download_via_telegram, args=(job_id,url), daemon=True).start()
+        threading.Thread(target=download_via_bots, args=(job_id,url), daemon=True).start()
         return jsonify({"ok": True, "job_id": job_id})
 
 @app.route("/api/download", methods=["POST"])
@@ -356,8 +419,8 @@ def api_download():
     if BACKEND == "ytdlp":
         t = threading.Thread(target=download_ytdlp, args=(job_id,url,format_id), daemon=True)
     elif BACKEND == "telegram":
-        t = threading.Thread(target=download_via_telegram, args=(job_id,url), daemon=True)
-    else:  # auto
+        t = threading.Thread(target=download_via_bots, args=(job_id,url), daemon=True)
+    else:
         t = threading.Thread(target=download_auto, args=(job_id,url,format_id), daemon=True)
     t.start()
     return jsonify({"ok": True, "job_id": job_id})
@@ -375,10 +438,12 @@ def serve_file(name):
     if "/" in name or ".." in name: return ("Bad path",400)
     return send_from_directory(DOWNLOAD_DIR, name, as_attachment=True)
 
-# ------------- start -------------
+@app.route("/api/health")
+def health():
+    return jsonify({"ok": True, "backend": BACKEND, "bots": BOT_LIST})
+
 if __name__ == "__main__":
     port = int(os.environ.get("PORT", "5000"))
     debug = os.environ.get("FLASK_DEBUG", "0") == "1"
-    print(f"🎬 VideoSaver starting — backend: {BACKEND}, port: {port}")
-    print(f"   Telegram fallback: {'ON' if HAS_PYROGRAM and os.environ.get('TELEGRAM_SESSION_STRING') else 'OFF'}")
+    print(f"🎬 VideoSaver — backend={BACKEND}, bots={BOT_LIST}, port={port}")
     app.run(host="0.0.0.0", port=port, debug=debug)
