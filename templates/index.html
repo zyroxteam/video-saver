@@ -2,801 +2,449 @@
 <html lang="en">
 <head>
 <meta charset="UTF-8" />
-<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover" />
-<title>ZYROX DOWNLOADER — 4D Video Saver</title>
+<meta name="viewport" content="width=device-width,initial-scale=1" />
+<title>ZYROX DOWNLOADER — All-in-One Video Saver</title>
 <link rel="icon" href="/static/logo_nav.png" />
 <style>
-  /* ============ RESET / BASE ============ */
-  *,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
-  :root{
-    --bg-0:#05020f;
-    --bg-1:#0a0420;
-    --cyan:#00f0ff;
-    --magenta:#ff2bd6;
-    --purple:#7a3bff;
-    --gold:#ffd166;
-    --white:#f2f6ff;
-    --muted:#9aa3c7;
-    --glass:rgba(255,255,255,.06);
-    --glass-strong:rgba(255,255,255,.1);
-    --border:rgba(255,255,255,.12);
-    --shadow-cyan:0 0 30px rgba(0,240,255,.45), 0 0 60px rgba(0,240,255,.2);
-    --shadow-mag:0 0 30px rgba(255,43,214,.45), 0 0 60px rgba(255,43,214,.2);
-  }
-  html,body{height:100%;}
-  body{
-    font-family:"Space Grotesk","Inter",system-ui,-apple-system,Segoe UI,Roboto,sans-serif;
-    background:radial-gradient(ellipse at 20% 0%, #1a0a4a 0%, var(--bg-1) 40%, var(--bg-0) 100%);
-    color:var(--white);
-    overflow-x:hidden;
-    min-height:100vh;
-    position:relative;
-    -webkit-font-smoothing:antialiased;
-  }
-  /* Animated gradient background */
-  body::before{
-    content:"";position:fixed;inset:-20%;z-index:-2;
-    background:
-      radial-gradient(circle at 15% 20%, rgba(122,59,255,.35) 0%, transparent 40%),
-      radial-gradient(circle at 85% 80%, rgba(255,43,214,.28) 0%, transparent 45%),
-      radial-gradient(circle at 50% 50%, rgba(0,240,255,.18) 0%, transparent 50%);
-    animation:bgShift 18s ease-in-out infinite alternate;
-    filter:blur(40px);
-  }
-  @keyframes bgShift{
-    0%{transform:translate(0,0) scale(1) rotate(0deg)}
-    50%{transform:translate(-3%,2%) scale(1.08) rotate(2deg)}
-    100%{transform:translate(3%,-2%) scale(1.05) rotate(-2deg)}
-  }
-  /* Grid overlay */
-  body::after{
-    content:"";position:fixed;inset:0;z-index:-1;pointer-events:none;
-    background-image:
-      linear-gradient(rgba(0,240,255,.05) 1px,transparent 1px),
-      linear-gradient(90deg,rgba(255,43,214,.04) 1px,transparent 1px);
-    background-size:60px 60px;
-    mask-image:radial-gradient(ellipse at center,black 20%,transparent 80%);
-  }
-  canvas#particles{position:fixed;inset:0;z-index:-1;pointer-events:none;}
+*{box-sizing:border-box;margin:0;padding:0}
+:root{
+  --bg:#060215;--bg2:#0d0624;
+  --cyan:#00f0ff;--magenta:#ff2bd6;--purple:#8b5cff;--gold:#ffd166;
+  --text:#eef1ff;--muted:#8a93b8;
+  --card:rgba(255,255,255,.04);--card-border:rgba(255,255,255,.1);
+}
+html,body{height:100%}
+body{
+  font-family:"Inter","Segoe UI",system-ui,-apple-system,Roboto,sans-serif;
+  background:var(--bg);color:var(--text);overflow-x:hidden;
+  background-image:
+    radial-gradient(60% 50% at 15% 0%, rgba(139,92,255,.25), transparent 60%),
+    radial-gradient(50% 40% at 90% 100%, rgba(255,43,214,.18), transparent 60%);
+  background-attachment:fixed;
+  -webkit-font-smoothing:antialiased;
+  min-height:100vh;
+}
+/* subtle grid (static, very cheap) */
+body::before{
+  content:"";position:fixed;inset:0;z-index:-1;pointer-events:none;
+  background-image:
+    linear-gradient(rgba(0,240,255,.04) 1px,transparent 1px),
+    linear-gradient(90deg,rgba(255,43,214,.03) 1px,transparent 1px);
+  background-size:48px 48px;
+  mask-image:radial-gradient(ellipse at center,#000 30%,transparent 80%);
+  -webkit-mask-image:radial-gradient(ellipse at center,#000 30%,transparent 80%);
+}
+canvas#fx{position:fixed;inset:0;z-index:-1;pointer-events:none;opacity:.55}
 
-  /* ============ NAV ============ */
-  nav{
-    position:sticky;top:0;z-index:100;
-    display:flex;align-items:center;justify-content:space-between;
-    padding:18px 6vw;
-    backdrop-filter:blur(18px) saturate(140%);
-    -webkit-backdrop-filter:blur(18px) saturate(140%);
-    background:linear-gradient(180deg,rgba(5,2,15,.75),rgba(5,2,15,.35));
-    border-bottom:1px solid var(--border);
-  }
-  .brand{display:flex;align-items:center;gap:14px;text-decoration:none;color:#fff}
-  .brand img{
-    width:54px;height:54px;border-radius:14px;
-    filter:drop-shadow(0 0 12px rgba(0,240,255,.5));
-    animation:logoPulse 3s ease-in-out infinite;
-  }
-  @keyframes logoPulse{
-    0%,100%{filter:drop-shadow(0 0 12px rgba(0,240,255,.5)) drop-shadow(0 0 24px rgba(255,43,214,.2))}
-    50%{filter:drop-shadow(0 0 20px rgba(0,240,255,.8)) drop-shadow(0 0 40px rgba(255,43,214,.5))}
-  }
-  .brand-text{display:flex;flex-direction:column;line-height:1}
-  .brand-name{
-    font-weight:900;font-size:1.45rem;letter-spacing:.12em;
-    background:linear-gradient(90deg,var(--cyan),#fff 40%,var(--magenta));
-    -webkit-background-clip:text;background-clip:text;color:transparent;
-    text-shadow:0 0 30px rgba(0,240,255,.3);
-  }
-  .brand-sub{font-size:.7rem;letter-spacing:.35em;color:var(--muted);text-transform:uppercase;margin-top:4px}
-  .nav-links{display:flex;gap:22px;align-items:center}
-  .nav-links a{
-    color:var(--muted);text-decoration:none;font-size:.9rem;letter-spacing:.08em;
-    transition:.3s;position:relative;padding:6px 2px;
-  }
-  .nav-links a:hover{color:var(--cyan);text-shadow:0 0 10px var(--cyan)}
-  .sound-toggle{
-    width:40px;height:40px;border-radius:50%;
-    background:var(--glass);border:1px solid var(--border);
-    color:var(--white);cursor:pointer;display:grid;place-items:center;
-    transition:.3s;font-size:1.1rem;
-  }
-  .sound-toggle:hover{background:var(--glass-strong);box-shadow:var(--shadow-cyan)}
-  .sound-toggle.muted{opacity:.5}
+/* ---------- NAV ---------- */
+nav{
+  display:flex;align-items:center;justify-content:space-between;
+  padding:14px 5vw;position:sticky;top:0;z-index:50;
+  background:rgba(6,2,21,.65);-webkit-backdrop-filter:blur(12px);backdrop-filter:blur(12px);
+  border-bottom:1px solid var(--card-border);
+}
+.brand{display:flex;align-items:center;gap:11px;text-decoration:none;color:#fff}
+.brand img{width:40px;height:40px;border-radius:10px}
+.brand-t{display:flex;flex-direction:column;line-height:1}
+.brand-n{
+  font-weight:900;font-size:1.2rem;letter-spacing:.15em;
+  background:linear-gradient(90deg,var(--cyan),var(--magenta));
+  -webkit-background-clip:text;background-clip:text;color:transparent;
+}
+.brand-s{font-size:.65rem;letter-spacing:.3em;color:var(--muted);margin-top:3px;text-transform:uppercase}
+.snd{
+  width:36px;height:36px;border-radius:50%;border:1px solid var(--card-border);
+  background:var(--card);color:var(--text);cursor:pointer;display:grid;place-items:center;
+  font-size:1rem;transition:.2s;
+}
+.snd:hover{border-color:var(--cyan);color:var(--cyan)}
+.snd.muted{opacity:.5}
 
-  /* ============ HERO ============ */
-  .hero{
-    text-align:center;padding:50px 6vw 20px;position:relative;
-  }
-  .hero-badge{
-    display:inline-flex;align-items:center;gap:8px;
-    padding:6px 16px;border-radius:999px;
-    background:var(--glass);border:1px solid var(--border);
-    font-size:.75rem;letter-spacing:.2em;text-transform:uppercase;color:var(--cyan);
-    margin-bottom:28px;
-    animation:float 4s ease-in-out infinite;
-  }
-  .hero-badge .dot{
-    width:6px;height:6px;border-radius:50%;background:var(--cyan);
-    box-shadow:0 0 10px var(--cyan);animation:blink 1.4s infinite;
-  }
-  @keyframes blink{50%{opacity:.3}}
-  @keyframes float{
-    0%,100%{transform:translateY(0)}
-    50%{transform:translateY(-6px)}
-  }
-  h1.title{
-    font-size:clamp(2.4rem,7vw,5.4rem);font-weight:900;
-    letter-spacing:-.02em;line-height:1.02;
-    background:linear-gradient(135deg,#fff 0%,var(--cyan) 35%,var(--magenta) 70%,#fff 100%);
-    background-size:200% 200%;
-    -webkit-background-clip:text;background-clip:text;color:transparent;
-    animation:gradientMove 6s ease-in-out infinite;
-    margin-bottom:20px;
-    text-shadow:0 0 80px rgba(0,240,255,.2);
-  }
-  @keyframes gradientMove{
-    0%,100%{background-position:0% 50%}
-    50%{background-position:100% 50%}
-  }
-  h1.title .down{
-    display:inline-block;
-    color:var(--cyan);-webkit-text-fill-color:var(--cyan);
-    animation:bounceDown 1.6s ease-in-out infinite;
-    filter:drop-shadow(0 0 20px var(--cyan));
-  }
-  @keyframes bounceDown{
-    0%,100%{transform:translateY(0) rotate(0)}
-    50%{transform:translateY(8px) rotate(-6deg)}
-  }
-  .subtitle{
-    font-size:clamp(1rem,1.6vw,1.2rem);color:var(--muted);
-    max-width:620px;margin:0 auto 40px;line-height:1.5;
-  }
-  .platforms{
-    display:flex;flex-wrap:wrap;gap:10px;justify-content:center;margin-bottom:36px;
-  }
-  .platform-chip{
-    padding:7px 14px;border-radius:999px;font-size:.8rem;
-    background:var(--glass);border:1px solid var(--border);
-    color:var(--muted);transition:.3s;letter-spacing:.05em;
-  }
-  .platform-chip:hover{
-    color:#fff;border-color:var(--cyan);
-    box-shadow:0 0 20px rgba(0,240,255,.3);transform:translateY(-2px);
-  }
+/* ---------- HERO ---------- */
+.wrap{max-width:680px;margin:0 auto;padding:40px 20px 20px;text-align:center}
+.badge{
+  display:inline-flex;align-items:center;gap:7px;
+  padding:5px 13px;border-radius:999px;
+  background:var(--card);border:1px solid var(--card-border);
+  font-size:.7rem;letter-spacing:.2em;text-transform:uppercase;color:var(--cyan);
+  margin-bottom:22px;
+}
+.badge .d{width:6px;height:6px;border-radius:50%;background:var(--cyan);
+  box-shadow:0 0 8px var(--cyan);animation:pulse 1.5s infinite ease-in-out}
+@keyframes pulse{50%{opacity:.4}}
+h1{
+  font-size:clamp(2rem,6.5vw,4rem);font-weight:900;
+  line-height:1.05;letter-spacing:-.02em;margin-bottom:14px;
+  background:linear-gradient(135deg,#fff 0%,var(--cyan) 45%,var(--magenta) 90%);
+  -webkit-background-clip:text;background-clip:text;color:transparent;
+}
+h1 .arrow{color:var(--cyan);-webkit-text-fill-color:var(--cyan);display:inline-block;animation:bob 1.8s ease-in-out infinite}
+@keyframes bob{0%,100%{transform:translateY(0)}50%{transform:translateY(6px)}}
+.sub{color:var(--muted);font-size:clamp(.95rem,1.5vw,1.05rem);line-height:1.55;max-width:540px;margin:0 auto 22px}
+.chips{display:flex;flex-wrap:wrap;gap:7px;justify-content:center;margin-bottom:26px}
+.chip{
+  padding:5px 11px;border-radius:999px;font-size:.72rem;letter-spacing:.06em;
+  background:var(--card);border:1px solid var(--card-border);color:var(--muted);
+  transition:.2s;
+}
+.chip:hover{color:#fff;border-color:var(--cyan)}
 
-  /* ============ 4D CURVED DOWNLOADER ============ */
-  .downloader{
-    max-width:720px;margin:0 auto;padding:20px;position:relative;
-  }
-  .downloader-card{
-    position:relative;padding:40px 36px;border-radius:32px;
-    background:linear-gradient(135deg,rgba(255,255,255,.08),rgba(255,255,255,.02));
-    border:1px solid var(--border);
-    backdrop-filter:blur(30px) saturate(160%);
-    -webkit-backdrop-filter:blur(30px) saturate(160%);
-    box-shadow:
-      0 30px 80px rgba(0,0,0,.5),
-      inset 0 1px 0 rgba(255,255,255,.1),
-      0 0 80px rgba(122,59,255,.15);
-    overflow:hidden;
-  }
-  /* Animated border glow */
-  .downloader-card::before{
-    content:"";position:absolute;inset:-2px;border-radius:34px;z-index:-1;
-    background:conic-gradient(from var(--angle,0deg),
-      transparent 0deg,var(--cyan) 60deg,transparent 120deg,
-      transparent 180deg,var(--magenta) 240deg,transparent 300deg,transparent 360deg);
-    animation:rotateBorder 6s linear infinite;
-    opacity:.6;
-  }
-  @property --angle{syntax:"<angle>";initial-value:0deg;inherits:false}
-  @keyframes rotateBorder{to{--angle:360deg}}
-  .downloader-card::after{
-    content:"";position:absolute;inset:0;border-radius:32px;
-    background:radial-gradient(circle at 20% 0%,rgba(0,240,255,.08),transparent 50%),
-               radial-gradient(circle at 80% 100%,rgba(255,43,214,.08),transparent 50%);
-    pointer-events:none;
-  }
+/* ---------- CARD ---------- */
+.card{
+  position:relative;padding:28px 24px;border-radius:22px;
+  background:linear-gradient(160deg,rgba(255,255,255,.05),rgba(255,255,255,.015));
+  border:1px solid var(--card-border);
+  box-shadow:0 20px 50px rgba(0,0,0,.4);
+}
+.card::before{
+  content:"";position:absolute;inset:-1px;border-radius:23px;z-index:-1;
+  background:linear-gradient(135deg,rgba(0,240,255,.35),rgba(255,43,214,.25),transparent 60%);
+  opacity:.4;
+}
 
-  /* URL input */
-  .url-wrap{position:relative;margin-bottom:32px}
-  .url-input{
-    width:100%;padding:22px 64px 22px 60px;border-radius:18px;
-    background:rgba(0,0,0,.35);
-    border:2px solid var(--border);
-    color:var(--white);font-size:1.05rem;font-family:inherit;
-    outline:none;transition:.4s;letter-spacing:.01em;
-  }
-  .url-input::placeholder{color:var(--muted)}
-  .url-input:focus{
-    border-color:var(--cyan);
-    box-shadow:0 0 0 4px rgba(0,240,255,.1),var(--shadow-cyan);
-    background:rgba(0,0,0,.5);
-  }
-  .url-icon{
-    position:absolute;left:22px;top:50%;transform:translateY(-50%);
-    color:var(--cyan);font-size:1.3rem;
-    filter:drop-shadow(0 0 8px var(--cyan));
-    pointer-events:none;
-  }
-  .paste-btn{
-    position:absolute;right:14px;top:50%;transform:translateY(-50%);
-    padding:8px 14px;border-radius:10px;border:none;cursor:pointer;
-    background:var(--glass-strong);color:var(--cyan);font-size:.8rem;
-    font-family:inherit;font-weight:600;letter-spacing:.06em;
-    transition:.3s;
-  }
-  .paste-btn:hover{background:var(--cyan);color:#000;box-shadow:var(--shadow-cyan)}
+.field{position:relative;margin-bottom:22px}
+.field input{
+  width:100%;padding:16px 58px 16px 48px;border-radius:14px;
+  background:rgba(0,0,0,.35);border:1.5px solid var(--card-border);
+  color:var(--text);font-size:1rem;font-family:inherit;outline:none;
+  transition:.2s;
+}
+.field input::placeholder{color:var(--muted)}
+.field input:focus{border-color:var(--cyan);background:rgba(0,0,0,.5)}
+.field .ic{position:absolute;left:16px;top:50%;transform:translateY(-50%);font-size:1.05rem}
+.paste{
+  position:absolute;right:8px;top:50%;transform:translateY(-50%);
+  padding:7px 12px;border-radius:8px;border:none;cursor:pointer;
+  background:rgba(0,240,255,.12);color:var(--cyan);font-size:.75rem;
+  font-family:inherit;font-weight:700;letter-spacing:.08em;transition:.15s;
+}
+.paste:hover{background:var(--cyan);color:#000}
 
-  /* ============ 4D CURVED PROGRESS RING ============ */
-  .progress-stage{
-    position:relative;display:flex;flex-direction:column;align-items:center;gap:24px;
-    margin-top:10px;min-height:260px;
-  }
-  .ring-wrap{
-    position:relative;width:220px;height:220px;
-    perspective:1000px;
-    transform-style:preserve-3d;
-  }
-  .ring-wrap.tilting{animation:wobble 2s ease-in-out infinite}
-  @keyframes wobble{
-    0%,100%{transform:rotateX(10deg) rotateY(-10deg)}
-    50%{transform:rotateX(-6deg) rotateY(10deg)}
-  }
-  .ring-wrap svg{width:100%;height:100%;overflow:visible;transform:rotate(-90deg)}
-  .ring-bg{fill:none;stroke:rgba(255,255,255,.08);stroke-width:10}
-  .ring-track{fill:none;stroke:rgba(122,59,255,.2);stroke-width:10;stroke-linecap:round}
-  .ring-progress{
-    fill:none;stroke:url(#grad);stroke-width:10;stroke-linecap:round;
-    filter:drop-shadow(0 0 10px var(--cyan)) drop-shadow(0 0 20px var(--magenta));
-    stroke-dasharray:628;stroke-dashoffset:628;
-    transition:stroke-dashoffset .3s ease;
-  }
-  .ring-glow{
-    fill:none;stroke:url(#grad);stroke-width:18;stroke-linecap:round;
-    opacity:.3;filter:blur(8px);
-    stroke-dasharray:628;stroke-dashoffset:628;
-    transition:stroke-dashoffset .3s ease;
-  }
-  /* Orbiting particles along ring */
-  .orbit-dot{
-    position:absolute;top:50%;left:50%;width:12px;height:12px;
-    border-radius:50%;margin:-6px 0 0 -6px;
-    background:var(--cyan);box-shadow:0 0 20px var(--cyan),0 0 40px var(--cyan);
-    transform-origin:0 0;
-    animation:orbit 3s linear infinite;
-    opacity:0;
-  }
-  .orbit-dot.d2{background:var(--magenta);box-shadow:0 0 20px var(--magenta),0 0 40px var(--magenta);animation-duration:2.4s;animation-direction:reverse}
-  .orbit-dot.d3{background:var(--gold);box-shadow:0 0 20px var(--gold);animation-duration:4s}
-  .downloading .orbit-dot{opacity:1}
-  @keyframes orbit{
-    from{transform:rotate(0deg) translateX(110px) rotate(0deg)}
-    to{transform:rotate(360deg) translateX(110px) rotate(-360deg)}
-  }
+/* ---------- PROGRESS RING ---------- */
+.ring-box{display:flex;flex-direction:column;align-items:center;gap:18px;margin:6px 0 4px}
+.ring{position:relative;width:180px;height:180px}
+.ring svg{width:100%;height:100%;transform:rotate(-90deg)}
+.r-bg{fill:none;stroke:rgba(255,255,255,.07);stroke-width:8}
+.r-fill{fill:none;stroke:url(#rg);stroke-width:8;stroke-linecap:round;
+  stroke-dasharray:502;stroke-dashoffset:502;transition:stroke-dashoffset .25s linear;
+  filter:drop-shadow(0 0 6px rgba(0,240,255,.55));
+}
+.ring-c{
+  position:absolute;inset:0;display:flex;flex-direction:column;
+  align-items:center;justify-content:center;text-align:center;
+}
+.ring-c .emo{font-size:2.2rem;line-height:1;margin-bottom:4px;transition:.3s}
+.ring-c .pct{
+  font-size:2rem;font-weight:900;line-height:1;
+  background:linear-gradient(90deg,var(--cyan),var(--magenta));
+  -webkit-background-clip:text;background-clip:text;color:transparent;
+}
+.ring-c .lbl{font-size:.68rem;letter-spacing:.18em;text-transform:uppercase;color:var(--muted);margin-top:5px}
+.ring-c .sz{font-size:.78rem;color:var(--cyan);margin-top:3px}
+.busy .ring .emo{animation:breathe 1.4s ease-in-out infinite}
+@keyframes breathe{0%,100%{transform:scale(1)}50%{transform:scale(1.12)}}
 
-  .ring-content{
-    position:absolute;inset:0;display:flex;flex-direction:column;
-    align-items:center;justify-content:center;text-align:center;
-  }
-  .ring-icon{font-size:2.6rem;margin-bottom:6px;animation:breathe 2s ease-in-out infinite}
-  @keyframes breathe{
-    0%,100%{transform:scale(1);filter:drop-shadow(0 0 10px var(--cyan))}
-    50%{transform:scale(1.15);filter:drop-shadow(0 0 25px var(--cyan)) drop-shadow(0 0 50px var(--magenta))}
-  }
-  .ring-pct{
-    font-size:2.4rem;font-weight:900;letter-spacing:-.02em;
-    background:linear-gradient(90deg,var(--cyan),var(--magenta));
-    -webkit-background-clip:text;background-clip:text;color:transparent;
-    line-height:1;
-  }
-  .ring-status{
-    font-size:.75rem;letter-spacing:.18em;text-transform:uppercase;
-    color:var(--muted);margin-top:6px;
-  }
-  .ring-size{font-size:.85rem;color:var(--cyan);margin-top:4px}
+/* ---------- BUTTON ---------- */
+.btn{
+  position:relative;padding:15px 44px;border:none;border-radius:14px;
+  font:inherit;font-weight:800;font-size:1rem;letter-spacing:.12em;text-transform:uppercase;
+  cursor:pointer;color:#fff;overflow:hidden;
+  background:linear-gradient(135deg,var(--cyan),var(--purple),var(--magenta));
+  background-size:200% 200%;
+  box-shadow:0 8px 24px rgba(0,240,255,.35),0 8px 24px rgba(255,43,214,.25);
+  transition:transform .15s,box-shadow .2s,opacity .2s;
+  animation:grad 4s ease-in-out infinite;
+  will-change:transform;
+}
+.btn::after{
+  content:"";position:absolute;top:0;left:-60%;width:50%;height:100%;
+  background:linear-gradient(90deg,transparent,rgba(255,255,255,.25),transparent);
+  transform:skewX(-20deg);transition:.6s;
+}
+.btn:hover:not(:disabled){transform:translateY(-2px);box-shadow:0 12px 32px rgba(0,240,255,.5),0 12px 32px rgba(255,43,214,.4)}
+.btn:hover:not(:disabled)::after{left:110%}
+.btn:active:not(:disabled){transform:translateY(0)}
+.btn:disabled{opacity:.7;cursor:wait}
+@keyframes grad{0%,100%{background-position:0% 50%}50%{background-position:100% 50%}}
 
-  /* DOWNLOAD button */
-  .btn-download{
-    position:relative;padding:18px 56px;border:none;border-radius:18px;
-    font-family:inherit;font-size:1.1rem;font-weight:800;letter-spacing:.12em;
-    text-transform:uppercase;cursor:pointer;overflow:hidden;
-    background:linear-gradient(135deg,var(--cyan) 0%,var(--purple) 50%,var(--magenta) 100%);
-    background-size:200% 200%;
-    color:#fff;
-    box-shadow:0 10px 40px rgba(0,240,255,.4),0 10px 40px rgba(255,43,214,.3);
-    transition:transform .2s,box-shadow .3s,background-position .6s;
-    animation:btnShine 3s ease-in-out infinite;
-  }
-  .btn-download::before{
-    content:"";position:absolute;top:0;left:-100%;width:100%;height:100%;
-    background:linear-gradient(90deg,transparent,rgba(255,255,255,.35),transparent);
-    transition:.6s;
-  }
-  .btn-download:hover{
-    transform:translateY(-3px) scale(1.03);
-    box-shadow:0 15px 60px rgba(0,240,255,.6),0 15px 60px rgba(255,43,214,.5);
-  }
-  .btn-download:hover::before{left:100%}
-  .btn-download:active{transform:translateY(0) scale(.98)}
-  .btn-download:disabled{opacity:.7;cursor:not-allowed;transform:none}
-  @keyframes btnShine{
-    0%,100%{background-position:0% 50%}
-    50%{background-position:100% 50%}
-  }
-  .btn-download .btn-icon{display:inline-block;margin-right:10px;animation:bounceDown 1.6s ease-in-out infinite}
+.msg{min-height:20px;font-size:.85rem;margin-top:10px;text-align:center;color:var(--muted)}
+.msg.err{color:#ff7aa8}
+.msg.ok{color:#7affbd}
 
-  /* Status / result */
-  .status-text{
-    font-size:.9rem;color:var(--muted);min-height:22px;text-align:center;
-    letter-spacing:.04em;
-  }
-  .status-text.error{color:#ff6b9d}
-  .status-text.success{color:#6bffb5}
+/* ---------- RESULT ---------- */
+.result{
+  margin-top:20px;padding:18px;border-radius:16px;display:none;
+  background:linear-gradient(135deg,rgba(0,240,255,.08),rgba(255,43,214,.06));
+  border:1px solid rgba(0,240,255,.25);text-align:left;
+  animation:pop .4s cubic-bezier(.34,1.56,.64,1);
+}
+.result.show{display:block}
+@keyframes pop{from{opacity:0;transform:translateY(10px) scale(.98)}to{opacity:1;transform:none}}
+.r-t{font-weight:700;font-size:.95rem;margin-bottom:8px;word-break:break-word}
+.r-m{display:flex;gap:14px;flex-wrap:wrap;color:var(--muted);font-size:.78rem;margin-bottom:12px}
+.r-m span{display:inline-flex;align-items:center;gap:5px}
+.get{
+  display:inline-flex;align-items:center;gap:8px;
+  padding:10px 22px;border-radius:10px;text-decoration:none;color:#000;
+  background:linear-gradient(135deg,var(--cyan),var(--gold));
+  font-weight:700;font-size:.88rem;letter-spacing:.05em;
+  box-shadow:0 6px 20px rgba(0,240,255,.35);transition:.15s;border:none;cursor:pointer;
+}
+.get:hover{transform:translateY(-1px);box-shadow:0 8px 24px rgba(0,240,255,.5)}
 
-  .result-card{
-    margin-top:28px;padding:22px;border-radius:20px;
-    background:linear-gradient(135deg,rgba(0,240,255,.1),rgba(255,43,214,.08));
-    border:1px solid rgba(0,240,255,.3);
-    display:none;
-    animation:popIn .5s cubic-bezier(.34,1.56,.64,1);
-  }
-  .result-card.show{display:block}
-  @keyframes popIn{
-    from{opacity:0;transform:translateY(20px) scale(.95)}
-    to{opacity:1;transform:translateY(0) scale(1)}
-  }
-  .result-title{font-weight:700;font-size:1rem;margin-bottom:6px;word-break:break-word}
-  .result-meta{display:flex;gap:18px;flex-wrap:wrap;color:var(--muted);font-size:.85rem;margin-bottom:14px}
-  .result-meta span{display:flex;align-items:center;gap:6px}
-  .btn-get{
-    display:inline-flex;align-items:center;gap:10px;
-    padding:12px 26px;border-radius:12px;text-decoration:none;color:#000;
-    background:linear-gradient(135deg,var(--cyan),var(--gold));
-    font-weight:700;font-size:.95rem;letter-spacing:.06em;
-    transition:.3s;border:none;cursor:pointer;
-    box-shadow:0 8px 30px rgba(0,240,255,.4);
-  }
-  .btn-get:hover{transform:translateY(-2px);box-shadow:0 12px 40px rgba(0,240,255,.6)}
+/* ---------- FEATURES ---------- */
+.feats{
+  max-width:980px;margin:50px auto 40px;padding:0 20px;
+  display:grid;grid-template-columns:repeat(auto-fit,minmax(200px,1fr));gap:14px;
+}
+.feat{
+  padding:22px 18px;border-radius:16px;background:var(--card);
+  border:1px solid var(--card-border);transition:.2s;
+}
+.feat:hover{transform:translateY(-3px);border-color:var(--cyan)}
+.feat-i{
+  width:42px;height:42px;border-radius:10px;display:grid;place-items:center;
+  font-size:1.3rem;margin-bottom:12px;
+  background:linear-gradient(135deg,rgba(0,240,255,.15),rgba(255,43,214,.15));
+}
+.feat h3{font-size:1rem;font-weight:700;margin-bottom:6px}
+.feat p{color:var(--muted);font-size:.82rem;line-height:1.5}
 
-  /* ============ FEATURES ============ */
-  .features{
-    max-width:1100px;margin:80px auto 60px;padding:0 6vw;
-    display:grid;grid-template-columns:repeat(auto-fit,minmax(230px,1fr));gap:20px;
-  }
-  .feature{
-    padding:28px 24px;border-radius:22px;
-    background:var(--glass);border:1px solid var(--border);
-    backdrop-filter:blur(20px);-webkit-backdrop-filter:blur(20px);
-    transition:.4s;position:relative;overflow:hidden;
-  }
-  .feature:hover{
-    transform:translateY(-6px);
-    border-color:var(--cyan);box-shadow:var(--shadow-cyan);
-  }
-  .feature-icon{
-    width:52px;height:52px;border-radius:14px;
-    display:grid;place-items:center;font-size:1.6rem;margin-bottom:16px;
-    background:linear-gradient(135deg,rgba(0,240,255,.2),rgba(255,43,214,.2));
-    border:1px solid var(--border);
-  }
-  .feature h3{font-size:1.1rem;font-weight:700;margin-bottom:8px;letter-spacing:.01em}
-  .feature p{color:var(--muted);font-size:.88rem;line-height:1.55}
+footer{
+  text-align:center;padding:28px 20px;color:var(--muted);font-size:.75rem;
+  border-top:1px solid var(--card-border);margin-top:40px;letter-spacing:.06em;
+}
+footer b{color:var(--cyan);font-weight:600}
 
-  /* ============ FOOTER ============ */
-  footer{
-    text-align:center;padding:40px 6vw 30px;color:var(--muted);font-size:.82rem;
-    border-top:1px solid var(--border);margin-top:60px;letter-spacing:.08em;
-  }
-  footer span{color:var(--cyan)}
-
-  /* ============ RESPONSIVE ============ */
-  @media(max-width:640px){
-    nav{padding:14px 5vw}
-    .brand img{width:42px;height:42px}
-    .brand-name{font-size:1.15rem}
-    .nav-links{gap:12px}
-    .nav-links a{display:none}
-    .hero{padding:30px 5vw 10px}
-    .downloader-card{padding:28px 20px;border-radius:24px}
-    .url-input{padding:18px 58px 18px 50px;font-size:.95rem}
-    .ring-wrap{width:180px;height:180px}
-    .ring-pct{font-size:2rem}
-    .ring-bg,.ring-track,.ring-progress,.ring-glow{stroke-width:8}
-    .orbit-dot{animation-duration:3s}
-    .btn-download{padding:16px 40px;font-size:1rem}
-  }
-
-  /* Ripple */
-  .ripple{position:absolute;border-radius:50%;background:rgba(255,255,255,.4);transform:scale(0);animation:ripple .7s ease-out;pointer-events:none}
-  @keyframes ripple{to{transform:scale(4);opacity:0}}
+/* Mobile */
+@media(max-width:520px){
+  nav{padding:12px 4vw}
+  .wrap{padding:26px 14px 12px}
+  .card{padding:22px 16px;border-radius:18px}
+  .ring{width:150px;height:150px}
+  .ring .pct{font-size:1.7rem}
+  .r-bg,.r-fill{stroke-width:7}
+  .btn{padding:13px 32px;font-size:.9rem}
+}
+@media(prefers-reduced-motion:reduce){
+  *{animation:none!important;transition:none!important}
+}
 </style>
 </head>
 <body>
-<canvas id="particles"></canvas>
+<canvas id="fx"></canvas>
 
 <nav>
   <a class="brand" href="/">
-    <img src="/static/logo_nav.png" alt="ZYROX" />
-    <div class="brand-text">
-      <span class="brand-name">ZYROX</span>
-      <span class="brand-sub">DOWNLOADER</span>
+    <img src="/static/logo_nav.png" alt="ZYROX">
+    <div class="brand-t">
+      <span class="brand-n">ZYROX</span>
+      <span class="brand-s">DOWNLOADER</span>
     </div>
   </a>
-  <div class="nav-links">
-    <a href="#features">Features</a>
-    <a href="#how">How To</a>
-    <button class="sound-toggle" id="soundBtn" title="Toggle sound">🔊</button>
-  </div>
+  <button class="snd" id="snd" title="Sound">🔊</button>
 </nav>
 
-<section class="hero">
-  <div class="hero-badge"><span class="dot"></span> 4D Turbo Engine · 1000+ Sites</div>
-  <h1 class="title">Download ANY<br/>Video in <span class="down">⚡</span> Seconds</h1>
-  <p class="subtitle">YouTube, Instagram, Facebook, Twitter/X, TikTok, Pinterest, Reddit aur 1000+ sites se video download karo — 4K quality mein, ek click mein.</p>
-  <div class="platforms">
-    <span class="platform-chip">▶ YouTube</span>
-    <span class="platform-chip">📸 Instagram</span>
-    <span class="platform-chip">📘 Facebook</span>
-    <span class="platform-chip">𝕏 Twitter/X</span>
-    <span class="platform-chip">📌 Pinterest</span>
-    <span class="platform-chip">🎵 TikTok</span>
-    <span class="platform-chip">👻 Snapchat</span>
-    <span class="platform-chip">🎬 Vimeo</span>
+<div class="wrap">
+  <div class="badge"><span class="d"></span> Turbo Mode · 1000+ Sites</div>
+  <h1>Download ANY<br>Video in <span class="arrow">⚡</span> Seconds</h1>
+  <p class="sub">YouTube, Instagram, Facebook, Twitter/X, TikTok, Pinterest, Reddit aur 1000+ sites se HD video download karo — ek click mein, bilkul free.</p>
+  <div class="chips">
+    <span class="chip">▶ YouTube</span>
+    <span class="chip">📸 Instagram</span>
+    <span class="chip">📘 Facebook</span>
+    <span class="chip">𝕏 Twitter/X</span>
+    <span class="chip">📌 Pinterest</span>
+    <span class="chip">🎵 TikTok</span>
   </div>
-</section>
 
-<section class="downloader">
-  <div class="downloader-card">
-    <div class="url-wrap">
-      <span class="url-icon">🔗</span>
-      <input type="text" id="urlInput" class="url-input" placeholder="Yahan video link paste karein..." autocomplete="off" spellcheck="false" />
-      <button class="paste-btn" id="pasteBtn">PASTE</button>
+  <div class="card">
+    <div class="field">
+      <span class="ic">🔗</span>
+      <input id="url" type="text" placeholder="Video link yahan paste karein..." autocomplete="off" spellcheck="false" inputmode="url">
+      <button class="paste" id="paste">PASTE</button>
     </div>
 
-    <div class="progress-stage" id="stage">
-      <div class="ring-wrap" id="ringWrap">
-        <svg viewBox="0 0 220 220">
+    <div class="ring-box" id="rb">
+      <div class="ring">
+        <svg viewBox="0 0 180 180">
           <defs>
-            <linearGradient id="grad" x1="0%" y1="0%" x2="100%" y2="100%">
+            <linearGradient id="rg" x1="0" y1="0" x2="1" y2="1">
               <stop offset="0%" stop-color="#00f0ff"/>
-              <stop offset="50%" stop-color="#7a3bff"/>
               <stop offset="100%" stop-color="#ff2bd6"/>
             </linearGradient>
           </defs>
-          <circle class="ring-bg" cx="110" cy="110" r="100"/>
-          <circle class="ring-track" cx="110" cy="110" r="100"/>
-          <circle class="ring-glow" id="ringGlow" cx="110" cy="110" r="100"/>
-          <circle class="ring-progress" id="ringProgress" cx="110" cy="110" r="100"/>
+          <circle class="r-bg" cx="90" cy="90" r="80"/>
+          <circle class="r-fill" id="rf" cx="90" cy="90" r="80"/>
         </svg>
-        <div class="orbit-dot"></div>
-        <div class="orbit-dot d2"></div>
-        <div class="orbit-dot d3"></div>
-        <div class="ring-content">
-          <div class="ring-icon" id="ringIcon">⬇️</div>
-          <div class="ring-pct" id="ringPct">0%</div>
-          <div class="ring-status" id="ringStatus">Ready</div>
-          <div class="ring-size" id="ringSize"></div>
+        <div class="ring-c">
+          <div class="emo" id="emo">⬇️</div>
+          <div class="pct" id="pct">0%</div>
+          <div class="lbl" id="lbl">Ready</div>
+          <div class="sz" id="sz"></div>
         </div>
       </div>
 
-      <button class="btn-download" id="dlBtn">
-        <span class="btn-icon">⬇</span><span id="btnText">DOWNLOAD</span>
-      </button>
-      <div class="status-text" id="statusText"></div>
+      <button class="btn" id="go">⬇ DOWNLOAD</button>
+      <div class="msg" id="msg"></div>
 
-      <div class="result-card" id="resultCard">
-        <div class="result-title" id="resultTitle"></div>
-        <div class="result-meta">
-          <span id="resultSize">📦 —</span>
-          <span id="resultBot">🤖 —</span>
-          <span id="resultPlatform">🎬 —</span>
+      <div class="result" id="res">
+        <div class="r-t" id="rt"></div>
+        <div class="r-m">
+          <span id="rs">📦 —</span>
+          <span id="rb2">🤖 —</span>
         </div>
-        <a class="btn-get" id="resultLink" href="#" download>⬇️ GET FILE</a>
+        <a class="get" id="gl" href="#" download>⬇ GET FILE</a>
       </div>
     </div>
   </div>
-</section>
+</div>
 
-<section class="features" id="features">
-  <div class="feature">
-    <div class="feature-icon">⚡</div>
-    <h3>Lightning Fast</h3>
-    <p>4D turbo engine se 10x faster downloads. Seconds mein HD videos aapke phone mein.</p>
-  </div>
-  <div class="feature">
-    <div class="feature-icon">🌐</div>
-    <h3>1000+ Websites</h3>
-    <p>YouTube, Instagram, FB, Twitter/X, TikTok, Pinterest, Reddit, Vimeo aur bahut kuch.</p>
-  </div>
-  <div class="feature">
-    <div class="feature-icon">🎥</div>
-    <h3>4K Ultra HD</h3>
-    <p>360p se lekar 2160p 4K tak. Best quality mein video download, no watermarks.</p>
-  </div>
-  <div class="feature">
-    <div class="feature-icon">🔒</div>
-    <h3>100% Safe</h3>
-    <p>No ads, no tracking, no sign-up. Direct encrypted downloads, bilkul private.</p>
-  </div>
-</section>
+<div class="feats">
+  <div class="feat"><div class="feat-i">⚡</div><h3>Lightning Fast</h3><p>Seconds mein HD downloads, no waiting.</p></div>
+  <div class="feat"><div class="feat-i">🌐</div><h3>1000+ Sites</h3><p>YouTube, IG, FB, X, TikTok, Pinterest aur bahut kuch.</p></div>
+  <div class="feat"><div class="feat-i">🎥</div><h3>Full HD</h3><p>360p se 4K tak, best quality, no watermark.</p></div>
+  <div class="feat"><div class="feat-i">🔒</div><h3>100% Safe</h3><p>No ads, no tracking, no sign-up. Direct download.</p></div>
+</div>
 
-<footer>
-  Made with <span>♥</span> by <span>ZYROX</span> · © 2026 ZYROX DOWNLOADER · All platforms supported
-</footer>
+<footer>Made with <b>♥</b> by <b>ZYROX</b> · © 2026 ZYROX DOWNLOADER</footer>
 
 <script>
-/* ============================================================
-   WEB AUDIO — sound effects (synthesized, no files needed)
-   ============================================================ */
-let audioCtx=null, soundOn=true;
-const soundBtn=document.getElementById('soundBtn');
-soundBtn.onclick=()=>{
-  soundOn=!soundOn;
-  soundBtn.textContent=soundOn?'🔊':'🔇';
-  soundBtn.classList.toggle('muted',!soundOn);
-  if(soundOn){ensureAudio();playTone(880,.08,'sine',.15);setTimeout(()=>playTone(1320,.1,'sine',.15),80);}
-};
-function ensureAudio(){
-  if(!audioCtx){
-    try{audioCtx=new (window.AudioContext||window.webkitAudioContext)();}catch(e){}
-  }
-  if(audioCtx && audioCtx.state==='suspended')audioCtx.resume();
+/* ========== LIGHTWEIGHT AUDIO ========== */
+let ac=null,sound=true;
+const sndBtn=document.getElementById('snd');
+sndBtn.onclick=()=>{sound=!sound;sndBtn.textContent=sound?'🔊':'🔇';sndBtn.classList.toggle('muted',!sound);if(sound){beep(880,.06);setTimeout(()=>beep(1320,.08),60);}};
+function ainit(){try{if(!ac)ac=new (window.AudioContext||window.webkitAudioContext)();if(ac.state==='suspended')ac.resume();}catch(e){}}
+function beep(f,d=.12,v=.15,type='square'){
+  if(!sound)return;ainit();if(!ac)return;
+  const o=ac.createOscillator(),g=ac.createGain();
+  o.type=type;o.frequency.value=f;o.connect(g);g.connect(ac.destination);
+  const t=ac.currentTime;
+  g.gain.setValueAtTime(0,t);g.gain.linearRampToValueAtTime(v,t+.005);g.gain.exponentialRampToValueAtTime(.001,t+d);
+  o.start(t);o.stop(t+d+.02);
 }
-function playTone(freq,dur=0.15,type='sine',vol=0.2){
-  if(!soundOn)return;ensureAudio();if(!audioCtx)return;
-  const o=audioCtx.createOscillator(), g=audioCtx.createGain();
-  o.type=type;o.frequency.value=freq;
-  g.gain.value=0;
-  o.connect(g);g.connect(audioCtx.destination);
-  const t=audioCtx.currentTime;
-  g.gain.linearRampToValueAtTime(vol,t+0.01);
-  g.gain.exponentialRampToValueAtTime(0.0001,t+dur);
-  o.start(t);o.stop(t+dur+0.02);
-}
-function playClick(){playTone(1200,.05,'square',.12);}
-function playSuccess(){
-  [523,659,784,1046].forEach((f,i)=>setTimeout(()=>playTone(f,.18,'triangle',.2),i*90));
-}
-function playError(){playTone(200,.25,'sawtooth',.2);setTimeout(()=>playTone(150,.3,'sawtooth',.2),120);}
-function playProgress(){/* tiny tick — too much noise, disabled */}
-function playWhoosh(){
-  if(!soundOn)return;ensureAudio();if(!audioCtx)return;
-  const o=audioCtx.createOscillator(),g=audioCtx.createGain();
-  o.type='sine';o.frequency.setValueAtTime(200,audioCtx.currentTime);
-  o.frequency.exponentialRampToValueAtTime(2000,audioCtx.currentTime+0.3);
-  g.gain.value=.15;g.gain.exponentialRampToValueAtTime(.001,audioCtx.currentTime+0.35);
-  o.connect(g);g.connect(audioCtx.destination);
-  o.start();o.stop(audioCtx.currentTime+0.4);
-}
-function playPop(){playTone(600,.08,'sine',.18);setTimeout(()=>playTone(900,.08,'sine',.12),60);}
+function sfxClick(){beep(1100,.04,.1)}
+function sfxGo(){beep(500,.06);setTimeout(()=>beep(800,.06),70);setTimeout(()=>beep(1200,.1),140);}
+function sfxOk(){[660,880,1100,1320].forEach((f,i)=>setTimeout(()=>beep(f,.15,.18,'triangle'),i*80));}
+function sfxErr(){beep(220,.2,.18,'sawtooth');setTimeout(()=>beep(160,.25,.15,'sawtooth'),120);}
+function sfxPop(){beep(700,.05,.1)}
 
-/* ============================================================
-   PARTICLE BACKGROUND (canvas)
-   ============================================================ */
-const canvas=document.getElementById('particles'),c=canvas.getContext('2d');
-let W,H,particles=[];
-function resize(){W=canvas.width=innerWidth;H=canvas.height=innerHeight;}
-addEventListener('resize',resize);resize();
-function initParticles(){
-  particles=[];const n=Math.min(80,Math.floor(W*H/18000));
-  for(let i=0;i<n;i++){
-    particles.push({
-      x:Math.random()*W,y:Math.random()*H,
-      vx:(Math.random()-.5)*.4,vy:(Math.random()-.5)*.4,
-      r:Math.random()*2+.5,
-      col:Math.random()<.5?'0,240,255':'255,43,214'
-    });
+/* ========== LIGHTWEIGHT PARTICLES ========== */
+const cv=document.getElementById('fx'),ctx=cv.getContext('2d');
+let W,H,pts=[];
+function sz(){W=cv.width=innerWidth;H=cv.height=innerHeight;
+  const n=Math.min(45,Math.floor(W*H/35000));
+  pts=[];for(let i=0;i<n;i++)pts.push({x:Math.random()*W,y:Math.random()*H,vx:(Math.random()-.5)*.3,vy:(Math.random()-.5)*.3,r:Math.random()*1.6+.4,c:Math.random()<.5?'0,240,255':'255,43,214'});
+}
+addEventListener('resize',sz);sz();
+function loop(){
+  ctx.clearRect(0,0,W,H);
+  for(let i=0;i<pts.length;i++){
+    const p=pts[i];p.x+=p.vx;p.y+=p.vy;
+    if(p.x<0||p.x>W)p.vx*=-1;if(p.y<0||p.y>H)p.vy*=-1;
+    ctx.beginPath();ctx.arc(p.x,p.y,p.r,0,7);ctx.fillStyle=`rgba(${p.c},.5)`;ctx.fill();
   }
-}
-initParticles();
-function drawParticles(){
-  c.clearRect(0,0,W,H);
-  particles.forEach(p=>{
-    p.x+=p.vx;p.y+=p.vy;
-    if(p.x<0||p.x>W)p.vx*=-1;
-    if(p.y<0||p.y>H)p.vy*=-1;
-    c.beginPath();c.arc(p.x,p.y,p.r,0,Math.PI*2);
-    c.fillStyle=`rgba(${p.col},.6)`;c.fill();
-  });
-  // connections
-  for(let i=0;i<particles.length;i++){
-    for(let j=i+1;j<particles.length;j++){
-      const a=particles[i],b=particles[j];
-      const dx=a.x-b.x,dy=a.y-b.y,d=Math.sqrt(dx*dx+dy*dy);
-      if(d<120){
-        c.beginPath();c.moveTo(a.x,a.y);c.lineTo(b.x,b.y);
-        c.strokeStyle=`rgba(122,59,255,${(1-d/120)*.15})`;c.lineWidth=.6;c.stroke();
-      }
-    }
+  // just a few short lines, O(n) not O(n²)
+  for(let i=0;i<pts.length;i+=3){
+    const a=pts[i],b=pts[(i+1)%pts.length];
+    const dx=a.x-b.x,dy=a.y-b.y,d=dx*dx+dy*dy;
+    if(d<12000){ctx.beginPath();ctx.moveTo(a.x,a.y);ctx.lineTo(b.x,b.y);ctx.strokeStyle=`rgba(139,92,255,${(1-d/12000)*.12})`;ctx.lineWidth=.5;ctx.stroke();}
   }
-  requestAnimationFrame(drawParticles);
+  requestAnimationFrame(loop);
 }
-drawParticles();
+loop();
 
-/* ============================================================
-   MOUSE TILT on ring (4D effect)
-   ============================================================ */
-const ringWrap=document.getElementById('ringWrap');
-document.addEventListener('mousemove',e=>{
-  const rx=(e.clientY/innerHeight-.5)*-16;
-  const ry=(e.clientX/innerWidth-.5)*16;
-  if(!ringWrap.classList.contains('downloading')){
-    ringWrap.style.transform=`rotateX(${rx}deg) rotateY(${ry}deg)`;
-  }
-});
-document.addEventListener('mouseleave',()=>{
-  if(!ringWrap.classList.contains('downloading'))ringWrap.style.transform='';
-});
-
-/* ============================================================
-   PROGRESS RING
-   ============================================================ */
-const CIRC=2*Math.PI*100;
-const ringProgress=document.getElementById('ringProgress');
-const ringGlow=document.getElementById('ringGlow');
-const ringPct=document.getElementById('ringPct');
-const ringStatus=document.getElementById('ringStatus');
-const ringSize=document.getElementById('ringSize');
-const ringIcon=document.getElementById('ringIcon');
-const stage=document.getElementById('stage');
-function setProgress(pct,status,icon){
-  pct=Math.max(0,Math.min(100,pct));
-  const off=CIRC-(CIRC*pct/100);
-  ringProgress.style.strokeDashoffset=off;
-  ringGlow.style.strokeDashoffset=off;
-  ringPct.textContent=Math.floor(pct)+'%';
-  if(status)ringStatus.textContent=status;
-  if(icon)ringIcon.textContent=icon;
+/* ========== RING ========== */
+const C=2*Math.PI*80;
+const rf=document.getElementById('rf');
+const emoEl=document.getElementById('emo'),pctEl=document.getElementById('pct'),lblEl=document.getElementById('lbl'),szEl=document.getElementById('sz');
+const rb=document.getElementById('rb');
+function setPct(p,label,icon){
+  p=Math.max(0,Math.min(100,p));
+  rf.style.strokeDashoffset=C-(C*p/100);
+  pctEl.textContent=Math.round(p)+'%';
+  if(label)lblEl.textContent=label;
+  if(icon)emoEl.textContent=icon;
 }
-function resetRing(){
-  setProgress(0,'Ready','⬇️');
-  ringSize.textContent='';
-  stage.classList.remove('downloading');
-  ringWrap.classList.remove('tilting');
-  ringWrap.style.transform='';
-}
-resetRing();
+function resetUI(){setPct(0,'Ready','⬇️');szEl.textContent='';rb.classList.remove('busy');}
+resetUI();
 
-/* ============================================================
-   DOWNLOAD LOGIC
-   ============================================================ */
-const urlInput=document.getElementById('urlInput');
-const pasteBtn=document.getElementById('pasteBtn');
-const dlBtn=document.getElementById('dlBtn');
-const btnText=document.getElementById('btnText');
-const statusText=document.getElementById('statusText');
-const resultCard=document.getElementById('resultCard');
+/* ========== DOWNLOAD ========== */
+const urlEl=document.getElementById('url');
+const pasteBtn=document.getElementById('paste');
+const goBtn=document.getElementById('go');
+const msgEl=document.getElementById('msg');
+const resBox=document.getElementById('res');
 
 pasteBtn.onclick=async()=>{
-  playClick();
-  try{const t=await navigator.clipboard.readText();urlInput.value=t;urlInput.focus();playPop();}
-  catch(e){statusText.textContent='Clipboard access denied — manually paste karein';statusText.className='status-text error';}
+  sfxClick();
+  try{const t=await navigator.clipboard.readText();urlEl.value=t;sfxPop();urlEl.focus();}
+  catch(e){msg('Clipboard permission nahi mila — manually paste karein','err');}
 };
 
-dlBtn.onclick=async(e=>{
-  // Ripple
-  const rect=dlBtn.getBoundingClientRect();
-  const r=document.createElement('span');r.className='ripple';
-  const d=Math.max(rect.width,rect.height);
-  r.style.width=r.style.height=d+'px';
-  r.style.left=(e.clientX-rect.left-d/2)+'px';
-  r.style.top=(e.clientY-rect.top-d/2)+'px';
-  dlBtn.appendChild(r);setTimeout(()=>r.remove(),700);
+function msg(t,type){
+  msgEl.textContent=t;msgEl.className='msg'+(type?' '+type:'');
+}
 
-  const url=urlInput.value.trim();
-  if(!url){playError();statusText.textContent='⚠️ Pehle video link paste karein';statusText.className='status-text error';urlInput.focus();return;}
-  if(!/^https?:\/\//i.test(url)){playError();statusText.textContent='⚠️ Valid URL daalein (https:// se start hona chahiye)';statusText.className='status-text error';return;}
+goBtn.onclick=()=>{
+  sfxGo();ainit();
+  const url=urlEl.value.trim();
+  if(!url){sfxErr();msg('⚠️ Pehle video link paste karein','err');urlEl.focus();return;}
+  if(!/^https?:\/\//i.test(url)){sfxErr();msg('⚠️ Valid URL daalein (https:// se start karein)','err');return;}
 
-  playWhoosh();
-  ensureAudio();
-  resultCard.classList.remove('show');
-  statusText.textContent='';statusText.className='status-text';
-  dlBtn.disabled=true;btnText.textContent='PROCESSING...';
-  stage.classList.add('downloading');
-  ringWrap.classList.add('tilting');
-  ringIcon.textContent='⏳';
-  setProgress(5,'Connecting...','⏳');
-  ringSize.textContent='';
+  resBox.classList.remove('show');msg('','');
+  goBtn.disabled=true;goBtn.textContent='⏳ PROCESSING...';
+  rb.classList.add('busy');
+  setPct(5,'Connecting...','⏳');szEl.textContent='';
 
-  let jobId;
-  try{
-    const res=await fetch('/api/download',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({url})});
-    const data=await res.json();
-    if(!data.ok)throw new Error(data.error||'Submit failed');
-    jobId=data.job_id;
-  }catch(err){
-    playError();dlBtn.disabled=false;btnText.textContent='DOWNLOAD';
-    statusText.textContent='❌ '+err.message;statusText.className='status-text error';
-    stage.classList.remove('downloading');ringWrap.classList.remove('tilting');resetRing();
-    return;
-  }
+  fetch('/api/download',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({url})})
+    .then(r=>r.json())
+    .then(d=>{
+      if(!d.ok){throw new Error(d.error||'Server error');}
+      poll(d.job_id);
+    })
+    .catch(e=>{
+      sfxErr();done();msg('❌ '+e.message,'err');setPct(0,'Failed','❌');rb.classList.remove('busy');
+    });
+};
 
-  // Poll status
-  let pct=5,lastStatus='',lastPct=0;
-  const poll=async()=>{
-    try{
-      const r=await fetch('/api/status/'+jobId);
-      const d=await r.json();
-      const j=d.job;
-      const backend=j.backend||'',bot=j.bot||'',wait=j.wait_sec||0,fsize=j.filesize_human||'';
-
-      let sLabel='Waiting...',icon='⏳',p=pct;
-      const st=j.status;
-
-      if(st==='queued'||st==='contacting_bot'){sLabel='Connecting bot...';p=Math.min(15,pct+1);icon='🤖';}
-      else if(st==='selecting_quality'){sLabel='Selecting quality...';p=Math.min(35,pct+2);icon='🎯';}
-      else if(st==='downloading_from_bot'||st==='downloading'){
-        sLabel='Downloading '+fsize;p=Math.min(88,35+Math.min(53,wait*1.5));
-        icon='📥';
-        if(fsize)ringSize.textContent=fsize;
-      }
-      else if(st==='fallback_bot'){sLabel='Trying faster server...';p=Math.min(25,pct+1);icon='🔄';}
-      else if(st==='done'){
-        p=100;sLabel='COMPLETE!';icon='✅';
-        setProgress(100,'DONE','✅');
-        ringSize.textContent=j.filesize_human||'';
-        playSuccess();
-        dlBtn.disabled=false;btnText.textContent='DOWNLOAD ANOTHER';
-        stage.classList.remove('downloading');ringWrap.classList.remove('tilting');
-        // Show result
-        resultCard.classList.add('show');
-        document.getElementById('resultTitle').textContent=j.title||'Video';
-        document.getElementById('resultSize').textContent='📦 '+(j.filesize_human||'—');
-        document.getElementById('resultBot').textContent=bot?('🤖 '+bot):(backend?('⚡ '+backend):'');
-        document.getElementById('resultPlatform').textContent='🎬 '+(j.platform||'Video');
-        const link=document.getElementById('resultLink');
-        link.href='/files/'+j.filename;
-        statusText.textContent='🎉 Download taiyaar! Niche button se save karein.';
-        statusText.className='status-text success';
-        return;
-      }
-      else if(st==='error'){
-        playError();
-        dlBtn.disabled=false;btnText.textContent='TRY AGAIN';
-        stage.classList.remove('downloading');ringWrap.classList.remove('tilting');
-        ringIcon.textContent='❌';
-        ringStatus.textContent='FAILED';
-        statusText.textContent='❌ '+(j.error||'Download fail ho gaya');
-        statusText.className='status-text error';
-        return;
-      }
-
-      if(sLabel!==lastStatus){playPop();lastStatus=sLabel;}
-      setProgress(p,sLabel,icon);
-      pct=p;
-
-      setTimeout(poll,1500);
-    }catch(err){
-      setTimeout(poll,2500);
+function poll(jid,start=Date.now()){
+  const t=setTimeout(()=>poll(jid,start),1400);
+  fetch('/api/status/'+jid).then(r=>r.json()).then(d=>{
+    const j=d.job,st=j.status,wait=j.wait_sec||0,fsize=j.filesize_human||'',bot=j.bot||'',backend=j.backend||'';
+    let p=10,lbl='Connecting...',ico='⏳';
+    if(st==='queued'||st==='contacting_bot'){p=Math.min(20,8+wait*.6);lbl='Bot se connect...';ico='🤖';}
+    else if(st==='selecting_quality'){p=Math.min(38,20+wait*1.2);lbl='Quality select...';ico='🎯';}
+    else if(st==='downloading_from_bot'||st==='downloading'){p=Math.min(88,38+Math.min(50,wait*.9));lbl='Downloading...';ico='📥';if(fsize)szEl.textContent=fsize;}
+    else if(st==='fallback_bot'){p=Math.min(25,p);lbl='Switching server...';ico='🔄';}
+    else if(st==='done'){
+      clearTimeout(t);p=100;lbl='COMPLETE';ico='✅';setPct(100,lbl,ico);
+      if(fsize)szEl.textContent=fsize;
+      sfxOk();done();
+      resBox.classList.add('show');
+      document.getElementById('rt').textContent=j.title||'Video';
+      document.getElementById('rs').textContent='📦 '+(j.filesize_human||'—');
+      document.getElementById('rb2').textContent=bot?('🤖 '+bot):('⚡ '+(backend||'Server'));
+      document.getElementById('gl').href='/files/'+j.filename;
+      msg('🎉 Download taiyaar! Niche button se save karein','ok');
+      rb.classList.remove('busy');
+      return;
     }
-  };
-  poll();
-});
+    else if(st==='error'){
+      clearTimeout(t);sfxErr();done();
+      setPct(0,'Failed','❌');
+      msg('❌ '+(j.error||'Download fail ho gaya. Dobara try karein.'),'err');
+      rb.classList.remove('busy');
+      return;
+    }
+    setPct(p,lbl,ico);
+  }).catch(()=>{});
+}
 
-// Enter key triggers download
-urlInput.addEventListener('keydown',e=>{if(e.key==='Enter')dlBtn.click();});
+function done(){goBtn.disabled=false;goBtn.innerHTML='⬇ DOWNLOAD ANOTHER';}
 
-// Paste auto-focus
-urlInput.addEventListener('paste',()=>{setTimeout(()=>{if(urlInput.value)playPop();},100);});
-
-// Initial welcome chime (after first interaction to satisfy autoplay policy)
-document.addEventListener('click',()=>{ensureAudio();},{once:true});
-
-// Ripple on any button
-document.querySelectorAll('button').forEach(b=>{
-  b.addEventListener('click',e=>{
-    if(b===dlBtn)return;
-    const rect=b.getBoundingClientRect();
-    const r=document.createElement('span');r.className='ripple';
-    const d=Math.max(rect.width,rect.height);
-    r.style.width=r.style.height=d+'px';
-    r.style.left=(e.clientX-rect.left-d/2)+'px';
-    r.style.top=(e.clientY-rect.top-d/2)+'px';
-    b.appendChild(r);setTimeout(()=>r.remove(),700);
-    playClick();
-  });
-});
+urlEl.addEventListener('keydown',e=>{if(e.key==='Enter')goBtn.click();});
+document.addEventListener('click',()=>ainit(),{once:true});
 </script>
 </body>
 </html>
