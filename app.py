@@ -51,9 +51,12 @@ except Exception:
 
 BACKEND = os.environ.get("DOWNLOAD_BACKEND", "auto").lower()
 
-# Bot order: try YTfinderbot first (reliably delivers video), then allsaverbot
+# Bot list (order matters — YTfinderbot first for fastest YouTube; allsaverbot 2nd for other platforms)
 BOTS_RAW = os.environ.get("BOT_USERNAME", "YTfinderbot,allsaverbot")
 BOT_LIST = [b.strip().lstrip("@") for b in BOTS_RAW.split(",") if b.strip()]
+# Normalize order: YTfinderbot first (fast & reliable), then others
+_priority = ["ytfinderbot"]
+BOT_LIST = sorted(BOT_LIST, key=lambda b: 0 if b.lower() in _priority else 1)
 
 app = Flask(__name__)
 app.config["MAX_CONTENT_LENGTH"] = 500 * 1024 * 1024
