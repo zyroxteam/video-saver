@@ -92,16 +92,20 @@ def make_event_loop():
 # ------------- yt-dlp core -------------
 YTDL_COMMON = {
     "quiet": True, "no_warnings": True, "noplaylist": True,
-    "geo_bypass": True, "socket_timeout": 60,
-    "retries": 5, "fragment_retries": 5,
+    "geo_bypass": True, "socket_timeout": 20,
+    "retries": 2, "fragment_retries": 2,
     "concurrent_fragment_downloads": 4,
     "nocheckcertificate": True, "prefer_ffmpeg": True,
     "merge_output_format": "mp4",
     "extractor_args": {
-        "youtube": {"player_client": ["mweb", "android", "ios"]},
+        "youtube": {"player_client": ["mweb", "android", "ios"],
+                    "player_skip": ["js", "webpage"]},
     },
-    "extractor_retries": 3,
-    "file_access_retries": 3,
+    "extractor_retries": 1,
+    "file_access_retries": 2,
+    # Fail fast on datacenter so bot fallback can take over quickly
+    "skip_unavailable_fragments": True,
+    "no_color": True,
 }
 
 def _ytdlp_download(url, outtmpl, format_id=None, fetch_only=False):
@@ -134,7 +138,22 @@ def _ytdlp_download(url, outtmpl, format_id=None, fetch_only=False):
 def fetch_info_ytdlp(url):
     if not HAS_YTDLP:
         raise RuntimeError("yt-dlp is not installed.")
-    info = _ytdlp_download(url, "", fetch_only=True)
+    # Fetch-only uses skip_download so it's fast; still cap at 45s
+    info = None
+    def _run(box):
+        try:
+            box.append(_ytdlp_download(url, "", fetch_only=True))
+        except Exception as e:
+            box.append(e)
+    box = []
+    t = threading.Thread(target=_run, args=(box,), daemon=True)
+    t.start()
+    t.join(timeout=45)
+    if not box:
+        raise TimeoutError("yt-dlp info fetch timeout")
+    if isinstance(box[0], Exception):
+        raise box[0]
+    info = box[0]
     formats = []
     for f in info.get("formats", []):
         if f.get("vcodec") == "none" and f.get("acodec") == "none": continue
@@ -164,15 +183,38 @@ def fetch_info_ytdlp(url):
         "formats": uniq,
     }
 
-def download_ytdlp(job_id, url, format_id):
+def download_ytdlp(job_id, url, format_id, time_budget=75):
     with jobs_lock:
         jobs[job_id]["status"] = "downloading"
         jobs[job_id]["backend"] = "yt-dlp"
-    outtmpl = str(DOWNLOAD_DIR / f"{job_id}.%(ext)s")
-    info, fn = _ytdlp_download(url, outtmpl, format_id=format_id)
-    with jobs_lock:
-        jobs[job_id].update(status="done", title=info.get("title","Video"),
-                            filename=fn.name, filesize=fn.stat().st_size)
+
+    done_evt = threading.Event()
+    err_box = []
+
+    def _run():
+        try:
+            outtmpl = str(DOWNLOAD_DIR / f"{job_id}.%(ext)s")
+            info, fn = _ytdlp_download(url, outtmpl, format_id=format_id)
+            # Only mark done if nothing else (like a bot fallback) has already finished
+            with jobs_lock:
+                if jobs[job_id].get("status") in ("done", "error"):
+                    return
+                jobs[job_id].update(status="done", title=info.get("title","Video"),
+                                    filename=fn.name, filesize=fn.stat().st_size)
+        except Exception as e:
+            err_box.append(e)
+        finally:
+            done_evt.set()
+
+    t = threading.Thread(target=_run, daemon=True)
+    t.start()
+    done_evt.wait(timeout=time_budget)
+    if not done_evt.is_set():
+        # yt-dlp hung / still downloading slowly. Fall back to bot; _run will
+        # silently no-op if/when it finishes because status will already be set.
+        raise TimeoutError(f"yt-dlp ne {time_budget}s mein complete nahi kiya, bot fallback try kar rahe")
+    if err_box:
+        raise err_box[0]
 
 # ------------- Generic Telegram-bot engine (tries multiple bots) -------------
 # Per-bot button keyword preferences — what caption/text on a button means
