@@ -51,12 +51,49 @@ except Exception:
 
 BACKEND = os.environ.get("DOWNLOAD_BACKEND", "auto").lower()
 
-# Bot list (order matters — YTfinderbot first for fastest YouTube; allsaverbot 2nd for other platforms)
-BOTS_RAW = os.environ.get("BOT_USERNAME", "YTfinderbot,allsaverbot")
+# Bot list — platform-specific routing
+# Default order (used when no platform-specific bot exists):
+BOTS_RAW = os.environ.get("BOT_USERNAME", "YTfinderbot,allsaverbot,FacebookDl_RoBot")
 BOT_LIST = [b.strip().lstrip("@") for b in BOTS_RAW.split(",") if b.strip()]
-# Normalize order: YTfinderbot first (fast & reliable), then others
-_priority = ["ytfinderbot"]
-BOT_LIST = sorted(BOT_LIST, key=lambda b: 0 if b.lower() in _priority else 1)
+# Always include platform-specific bots (merge, dedupe, preserve order)
+_extra = ["FacebookDl_RoBot"]
+_seen = set(b.lower() for b in BOT_LIST)
+for _b in _extra:
+    if _b.lower() not in _seen:
+        BOT_LIST.append(_b)
+        _seen.add(_b.lower())
+
+# Platform-specific bot preference (highest priority first)
+# FacebookDl_RoBot is dedicated for Facebook; YTfinderbot fastest for YT/TikTok; allsaverbot covers 40+ sites
+PLATFORM_BOTS = {
+    "Facebook": ["FacebookDl_RoBot", "allsaverbot", "YTfinderbot"],
+    "YouTube": ["YTfinderbot", "allsaverbot"],
+    "TikTok": ["YTfinderbot", "allsaverbot"],
+}
+
+def _get_bot_order(url: str) -> list:
+    """Return ordered list of bots to try for given URL."""
+    platform = detect_platform(url)
+    preferred = PLATFORM_BOTS.get(platform, [])
+    ordered = []
+    seen = set()
+    for b in preferred + BOT_LIST:
+        bl = b.lower().lstrip("@")
+        if bl not in seen:
+            seen.add(bl)
+            ordered.append(bl)
+    return ordered
+
+# Branded display names (shown to user instead of raw bot usernames)
+BOT_DISPLAY = {
+    "ytfinderbot": {"backend": "Zyrox Server", "bot_label": "🤖 Toxic Arjun Bot"},
+    "allsaverbot": {"backend": "Zyrox Server", "bot_label": "🤖 Toxic Arjun Bot"},
+    "facebookdl_robot": {"backend": "Zyrox Server", "bot_label": "🤖 Toxic Arjun Bot"},
+    "facebookdl_roboot": {"backend": "Zyrox Server", "bot_label": "🤖 Toxic Arjun Bot"},
+    "facebookdlroboot": {"backend": "Zyrox Server", "bot_label": "🤖 Toxic Arjun Bot"},
+    "facebookdl_robot": {"backend": "Zyrox Server", "bot_label": "🤖 Toxic Arjun Bot"},
+    "default": {"backend": "Zyrox Server", "bot_label": "🤖 Toxic Arjun Bot"},
+}
 
 app = Flask(__name__)
 app.config["MAX_CONTENT_LENGTH"] = 500 * 1024 * 1024
@@ -106,6 +143,7 @@ def make_event_loop():
 BOT_VIDEO_KEYWORDS = {
     "allsaverbot": ["1080", "720", "480", "360", "240", "hd", "video", "mp4", "🎞", "download"],
     "ytfinderbot": ["video", "🎞", "mp4", "hd", "download", "get"],
+    "facebookdl_robot": ["video", "mp4", "hd", "sd", "download", "quality", "🔞"],
 }
 
 # Phrases that indicate the bot rejected the URL (don't wait for video)
@@ -454,10 +492,13 @@ def download_via_bots(job_id, url):
         raise RuntimeError("Telegram credentials env me nahi hain.")
 
     errors = []
-    for bot_name in BOT_LIST:
+    bot_order = _get_bot_order(url)
+    print(f"[job {job_id}] bot order for {detect_platform(url)}: {bot_order}", flush=True)
+    for bot_name in bot_order:
+        disp = BOT_DISPLAY.get(bot_name.lower(), BOT_DISPLAY["default"])
         with jobs_lock:
-            jobs[job_id]["backend"] = f"telegram @{bot_name}"
-            jobs[job_id]["bot"] = "@" + bot_name
+            jobs[job_id]["backend"] = disp["backend"]
+            jobs[job_id]["bot"] = disp["bot_label"]
         try:
             fn, title = asyncio.run(_bot_download_one(bot_name, url, job_id, api_id, api_hash, session))
             fp = DOWNLOAD_DIR / fn
@@ -581,8 +622,9 @@ def home():
 
 @app.route("/api/health")
 def health():
-    return jsonify({"ok": True, "backend": BACKEND, "bots": BOT_LIST,
-                    "primary": BOT_LIST[0] if BOT_LIST else None})
+    return jsonify({"ok": True, "backend": "Zyrox Server", "bots": BOT_LIST,
+                    "primary": BOT_LIST[0] if BOT_LIST else None,
+                    "brand": "ZYROX DOWNLOADER", "operator": "Toxic Arjun Bot"})
 
 @app.route("/api/fetch", methods=["POST"])
 def api_fetch():
