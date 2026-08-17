@@ -74,7 +74,7 @@ def _get_bot_order(url):
             seen.add(bl); ordered.append(bl)
     return ordered
 
-BOT_DISPLAY = {"default": {"backend": "Zyrox Server", "bot_label": "🤖 Toxic Arjun Bot"}}
+# No branding / credits / operator labels shown to the user (per user request: no credit, no admin)
 
 app = Flask(__name__)
 app.config["MAX_CONTENT_LENGTH"] = 500 * 1024 * 1024
@@ -476,9 +476,6 @@ async def _process_job(job_id, url):
             jobs[job_id]["error"] = "Telegram client ready nahi hai"
         return
     for bot_name in bot_order:
-        with jobs_lock:
-            jobs[job_id]["backend"] = disp["backend"]
-            jobs[job_id]["bot"] = disp["bot_label"]
         try:
             fn, title = await _bot_download_one(bot_name, url, job_id)
             fp = DOWNLOAD_DIR / fn
@@ -486,7 +483,7 @@ async def _process_job(job_id, url):
                 with jobs_lock:
                     jobs[job_id].update(
                         status="done", title=title, filename=fn,
-                        filesize=fp.stat().st_size, backend=disp["backend"], bot=disp["bot_label"],
+                        filesize=fp.stat().st_size,
                     )
                 print(f"[job {job_id}] ✅ @{bot_name} done {fn} ({human_size(fp.stat().st_size)})", flush=True)
                 return
@@ -500,7 +497,7 @@ async def _process_job(job_id, url):
             fn, title, sz = await _ytdlp_download(job_id, url)
             with jobs_lock:
                 jobs[job_id].update(status="done", title=title, filename=fn,
-                                    filesize=sz, backend=disp["backend"], bot=disp["bot_label"])
+                                    filesize=sz)
             print(f"[job {job_id}] ✅ yt-dlp fallback done ({human_size(sz)})", flush=True)
             return
         except Exception as e:
@@ -541,7 +538,6 @@ async def _ytdlp_download(job_id, url):
     loop = asyncio.get_running_loop()
     with jobs_lock:
         jobs[job_id]["status"] = "downloading"
-        jobs[job_id]["backend"] = "Zyrox Server"
     info, fn = await asyncio.wait_for(loop.run_in_executor(None, _run), timeout=150)
     return fn.name, info.get("title","Video"), fn.stat().st_size
 
@@ -590,15 +586,12 @@ def enqueue_download(job_id, url):
 # ------------- Routes -------------
 @app.route("/")
 def home():
-    return render_template("index.html", backend=BACKEND, bots=BOT_LIST,
-                           primary_bot=BOT_LIST[0] if BOT_LIST else "")
+    return render_template("index.html")
 
 @app.route("/api/health")
 def health():
     connected = bool(_tg_client and _tg_client.is_connected)
-    return jsonify({"ok": True, "backend": "Zyrox Server", "bots": BOT_LIST,
-                    "tg_connected": connected, "brand": "ZYROX DOWNLOADER",
-                    "operator": "Toxic Arjun Bot"})
+    return jsonify({"ok": True, "tg_connected": connected, "brand": "ZYROX DOWNLOADER"})
 
 @app.route("/api/download", methods=["POST"])
 def api_download():
@@ -611,8 +604,7 @@ def api_download():
     job_id = uuid.uuid4().hex[:12]
     with jobs_lock:
         jobs[job_id] = {"status":"queued","url":url,"created":time.time(),
-                        "platform":detect_platform(url),
-                        "backend":"Zyrox Server","bot":"🤖 Toxic Arjun Bot"}
+                        "platform":detect_platform(url)}
     enqueue_download(job_id, url)
     return jsonify({"ok": True, "job_id": job_id})
 
@@ -625,11 +617,12 @@ def api_fetch():
 def api_status(job_id):
     job = jobs.get(job_id)
     if not job: return jsonify({"ok": False, "error": "Job nahi mila."}), 404
-    resp = dict(job)
-    if job.get("filesize"): resp["filesize_human"] = human_size(job["filesize"])
-    # Always override branding
-    resp["backend"] = "Zyrox Server"
-    resp["bot"] = "🤖 Toxic Arjun Bot"
+    resp = {}
+    for k in ("status", "title", "filename", "filesize", "filesize_human", "platform", "wait_sec", "error"):
+        if k in job:
+            resp[k] = job[k]
+    if job.get("filesize"):
+        resp["filesize_human"] = human_size(job["filesize"])
     return jsonify({"ok": True, "job": resp})
 
 @app.route("/files/<path:name>")

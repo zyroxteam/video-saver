@@ -388,9 +388,7 @@ footer b{color:var(--neon1);font-family:'Orbitron',sans-serif;font-size:.75rem;l
         <div class="res-title" id="rtitle">Video ready</div>
       </div>
       <div class="res-meta">
-        <div><strong>⬇ Source</strong><span id="rbackend">Zyrox Server</span></div>
         <div><strong>📦 Size</strong><span id="rsize">—</span></div>
-        <div><strong>🤖 Served by</strong><span id="rbot">Toxic Arjun Bot</span></div>
       </div>
       <a class="get-btn" id="get" href="#" download>
         <span>⬇</span> GET FILE
@@ -413,7 +411,7 @@ footer b{color:var(--neon1);font-family:'Orbitron',sans-serif;font-size:.75rem;l
 
 <footer>
   <b>⬢ ZYROX DOWNLOADER ⬢</b><br/>
-  Powered by <span style="color:var(--neon2)">Toxic Arjun Bot</span> • Built for speed ⚡
+  Fast • Free • No Signup ⚡
 </footer>
 
 <script>
@@ -423,8 +421,7 @@ footer b{color:var(--neon1);font-family:'Orbitron',sans-serif;font-size:.75rem;l
 var $ = function(id){ return document.getElementById(id); };
 var urlIn=$('url'),btn=$('btn'),card=$('card'),progEl=$('prog'),pctEl=$('pct'),
     stageEl=$('stage'),subEl=$('sub'),resEl=$('res'),errBox=$('err'),errmsg=$('errmsg'),
-    rtitleEl=$('rtitle'),rsizeEl=$('rsize'),rbackendEl=$('rbackend'),rbotEl=$('rbot'),
-    getBtn=$('get'),rfg=document.getElementById('rfg'),sndBtn=$('snd'),
+    rtitleEl=$('rtitle'),rsizeEl=$('rsize'),getBtn=$('get'),
     cv=document.getElementById('fx');
 var cx = cv.getContext('2d');
 var CIRC = 2*Math.PI*60;
@@ -496,6 +493,21 @@ function resetUI(){
   btn.querySelector('.inner').innerHTML='<span class="ico">⬇</span><span>INITIATE DOWNLOAD</span><span class="arrow-ico">▶</span>';
   setPct(0);
 }
+// Reset form whenever user edits the URL so they can immediately paste a new one without refreshing
+urlIn.addEventListener('input',function(){
+  if(resEl.classList.contains('show')||errBox.classList.contains('show')||btn.classList.contains('ok')){
+    clearTimeout(polTimer);
+    curJob=null;
+    card.classList.remove('show-prog','scanning');
+    resEl.classList.remove('show');
+    errBox.classList.remove('show');
+    btn.classList.remove('loading','ok','err');
+    btn.disabled=false;
+    btn.querySelector('.inner').innerHTML='<span class="ico">⬇</span><span>INITIATE DOWNLOAD</span><span class="arrow-ico">▶</span>';
+    setPct(0);
+    stageEl.textContent='Initializing…';subEl.textContent='Connecting to server…';
+  }
+});
 function fail(msg){
   sfxErr();
   clearTimeout(polTimer);
@@ -508,7 +520,7 @@ function fail(msg){
     btn.querySelector('.inner').innerHTML='<span class="ico">⬇</span><span>INITIATE DOWNLOAD</span><span class="arrow-ico">▶</span>';
   },2800);
 }
-function done(file,title,fsize,backend,botLabel){
+function done(file,title,fsize){
   sfxOk();
   clearTimeout(polTimer);
   card.classList.remove('scanning');
@@ -518,10 +530,18 @@ function done(file,title,fsize,backend,botLabel){
   stageEl.textContent='FILE ACQUIRED';subEl.textContent='Tumhara file ready hai 🔥';
   rtitleEl.textContent=title||'Video';
   rsizeEl.textContent=fsize||'—';
-  rbackendEl.textContent=backend||'Zyrox Server';
-  rbotEl.textContent=botLabel||'🤖 Toxic Arjun Bot';
   getBtn.href='/files/'+encodeURIComponent(file);
   setTimeout(function(){resEl.classList.add('show');},400);
+  // Auto-reset the form after 4s so user can paste the NEXT link without refresh
+  setTimeout(function(){
+    card.classList.remove('show-prog');
+    resEl.classList.remove('show');
+    btn.classList.remove('ok');
+    btn.querySelector('.inner').innerHTML='<span class="ico">⬇</span><span>INITIATE DOWNLOAD</span><span class="arrow-ico">▶</span>';
+    setPct(0);
+    urlIn.value=''; urlIn.focus();
+    stageEl.textContent='Ready';subEl.textContent='Naya URL paste karo…';
+  },4000);
 }
 
 // ---------- Polling ----------
@@ -539,10 +559,10 @@ function pollStatus(){
         var w=Math.min(job.wait_sec||0,120);
         p=25+Math.floor((w/120)*60);
         stageEl.textContent='DOWNLOADING';
-        subEl.textContent='File Zyrox Server par receive ho rahi hai…';
+        subEl.textContent='File download ho rahi hai…';
       }
       else if(st==='error'){fail(job.error||'Unknown error');return;}
-      else if(st==='done'){p=100;done(job.filename,job.title,job.filesize_human,job.backend,job.bot);return;}
+      else if(st==='done'){p=100;done(job.filename,job.title,job.filesize_human);return;}
       setPct(p);
       polTimer=setTimeout(pollStatus,1200);
     })
