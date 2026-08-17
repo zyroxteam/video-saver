@@ -22,7 +22,7 @@ ENV PORT=10000 \
     PYTHONUNBUFFERED=1 \
     PIP_NO_CACHE_DIR=1 \
     BOT_USERNAME=allsaverbot,YTfinderbot,FacebookDl_RoBot,ironwood_downbot \
-    TG_CONCURRENCY=3
+    TG_CONCURRENCY=4
 
 EXPOSE 10000
 
