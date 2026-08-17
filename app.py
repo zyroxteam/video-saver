@@ -293,58 +293,119 @@ async def _bot_download_one(bot_name, url, job_id, api_id, api_hash, session):
         title = "Video"
         wait_after_click = 0
 
+        def safe_text(m, attr="text"):
+            """Get text/caption safely — Pyrogram sometimes crashes on surrogate chars in captions."""
+            try:
+                v = getattr(m, attr, None) or ""
+                return str(v)
+            except Exception:
+                return ""
+
+        DBG = print  # verbose for debug
         while time.time() < deadline:
             await asyncio.sleep(1.5)
-            async for m in c.get_chat_history(bot, limit=12):
+            try:
+                hist_iter = c.get_chat_history(bot, limit=12)
+            except Exception as e:
+                DBG(f"[bot {bot_name}] get_chat_history err: {e}")
+                continue
+            async for m in hist_iter:
                 if m.outgoing: continue
                 if m.date and m.date.timestamp() < t0-1: continue
                 if m.id == quality_msg_id: continue
 
                 # — Got media?
-                if m.video:
+                v = None
+                try:
+                    v = m.video
+                except Exception:
+                    v = None
+                d = None
+                try:
+                    d = m.document
+                except Exception:
+                    d = None
+                if v:
+                    DBG(f"[bot {bot_name}] GOT VIDEO msg_id={m.id}, size={getattr(v,'file_size',None)}, name={getattr(v,'file_name',None)}")
+                    cap = safe_text(m, "caption")
+                    if cap: title = cap[:120]
+                    vname = "video.mp4"
+                    try:
+                        vname = v.file_name or "video.mp4"
+                    except Exception:
+                        vname = "video.mp4"
                     with jobs_lock:
                         jobs[job_id]["status"] = "downloading_from_bot"
                         jobs[job_id]["wait_sec"] = int(time.time()-t0)
-                        if m.caption: title = m.caption[:120]
-                    out = DOWNLOAD_DIR / f"{job_id}_{bot_name}_{sanitize(m.video.file_name or f'video.mp4')}"
-                    dl = await c.download_media(m, file_name=str(out))
+                    out = DOWNLOAD_DIR / f"{job_id}_{bot_name}_{sanitize(vname)}"
+                    DBG(f"[bot {bot_name}] Starting download_media -> {out.name}")
+                    try:
+                        dl = await asyncio.wait_for(c.download_media(m, file_name=str(out)), timeout=90)
+                    except asyncio.TimeoutError:
+                        DBG(f"[bot {bot_name}] download_media TIMEOUT")
+                        raise
+                    DBG(f"[bot {bot_name}] Downloaded: {dl}")
                     return Path(dl).name, title
 
-                if m.document and m.document.mime_type and "video" in m.document.mime_type:
+                if d and d.mime_type and "video" in (d.mime_type or ""):
+                    cap = safe_text(m, "caption")
+                    if cap: title = cap[:120]
+                    dname = "video.bin"
+                    try:
+                        dname = d.file_name or "video.bin"
+                    except Exception:
+                        dname = "video.bin"
                     with jobs_lock:
                         jobs[job_id]["status"] = "downloading_from_bot"
-                        if m.caption: title = m.caption[:120]
-                    out = DOWNLOAD_DIR / f"{job_id}_{bot_name}_{sanitize(m.document.file_name or f'video.bin')}"
+                    out = DOWNLOAD_DIR / f"{job_id}_{bot_name}_{sanitize(dname)}"
                     dl = await c.download_media(m, file_name=str(out))
                     return Path(dl).name, title
 
-                if m.audio:
-                    # Some bots return audio for music links; skip for video flow
-                    continue
-                if m.photo or m.voice or m.video_note or m.animation:
-                    # Photo with caption is often the thumbnail/format menu
+                try:
+                    if m.audio:
+                        continue
+                except Exception:
                     pass
+                is_photo = is_other_media = False
+                try:
+                    is_photo = bool(m.photo)
+                except Exception: pass
+                try:
+                    is_other_media = bool(m.voice or m.video_note or m.animation)
+                except Exception: pass
+                if is_photo or is_other_media:
+                    cap = safe_text(m, "caption")
+                    if cap and (not title or title == "Video"):
+                        title = cap[:120]
 
                 # — Error text?
-                if m.text:
-                    tl = m.text.lower()
+                mtxt = safe_text(m, "text")
+                if mtxt:
+                    tl = mtxt.lower()
                     if any(k in tl for k in ERROR_KEYWORDS):
-                        if "add to group" in tl:
-                            # Bot telling us to add to group = unsupported platform
+                        if "add to group" in tl or "guruhga" in tl:
                             raise RuntimeError(f"@{bot_name} doesn't support this link")
-                        raise RuntimeError(f"@{bot_name}: {m.text[:150]}")
+                        raise RuntimeError(f"@{bot_name}: {mtxt[:150]}")
 
                 # — Buttons? Click a video/quality button once
-                if not clicked and m.reply_markup and getattr(m.reply_markup, "inline_keyboard", None):
+                rm = None
+                try:
+                    rm = m.reply_markup
+                except Exception:
+                    rm = None
+                if not clicked and rm and getattr(rm, "inline_keyboard", None):
                     btn = _pick_button(bot_name, m)
                     if btn:
+                        cap = safe_text(m, "caption")
+                        if cap and (not title or title == "Video"): title = cap[:120]
                         with jobs_lock:
                             jobs[job_id]["status"] = "selecting_quality"
-                            if m.caption: title = m.caption[:120]
+                        DBG(f"[bot {bot_name}] Clicking button {btn.text!r} on msg {m.id}")
                         try:
-                            await c.request_callback_answer(m.chat.id, m.id, btn.callback_data, timeout=30)
-                        except Exception:
-                            pass
+                            ans = await c.request_callback_answer(m.chat.id, m.id, btn.callback_data, timeout=30)
+                            DBG(f"[bot {bot_name}] cb answer alert={getattr(ans,'alert',None)} native_ui={getattr(ans,'native_ui',None)}")
+                        except Exception as e:
+                            DBG(f"[bot {bot_name}] cb err (ignored): {e}")
                         clicked = True
                         quality_msg_id = m.id
                         deadline = time.time() + 180  # give more time after click
